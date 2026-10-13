@@ -26,7 +26,7 @@ Because Next.js proxies `/api/*` to `BACKEND_URL`, deploying on Cloudflare gives
 
 ### Step 1: Connect Git Repository to Cloudflare Pages
 1. Log in to the [Cloudflare Dashboard](https://dash.cloudflare.com) > **Workers & Pages** > **Create application** > **Pages** > **Connect to Git**.
-2. Select your repository: `ria-coolection-agent`.
+2. Select your repository: `RIA-collection-agent-v` (or `roxigroups/RIA-collection-agent-v`).
 3. Configure build settings:
    * **Framework preset**: `Next.js (Static Export / OpenNext)`
    * **Root directory**: `frontend`

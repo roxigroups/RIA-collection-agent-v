@@ -1,6 +1,6 @@
 # GitHub Actions CI/CD & Auto-Deployment Setup
 
-This repository includes an automated GitHub Actions pipeline in [`.github/workflows/deploy.yml`](file:///c:/Users/karna/ria-coolection-agent/.github/workflows/deploy.yml).
+This repository includes an automated GitHub Actions pipeline in [`.github/workflows/deploy.yml`](../../.github/workflows/deploy.yml).
 
 ---
 

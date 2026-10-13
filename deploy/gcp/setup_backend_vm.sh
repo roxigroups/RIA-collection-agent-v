@@ -9,7 +9,7 @@ echo "=========================================================="
 echo "🚀 Bootstrapping VM 1 (RIA Backend & Voice Worker)..."
 echo "=========================================================="
 
-APP_DIR="/opt/ria-coolection-agent"
+APP_DIR="/opt/ria-collection-agent"
 
 # 1. Update system & install Python 3 and system libraries
 apt-get update

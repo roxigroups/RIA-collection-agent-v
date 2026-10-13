@@ -51,14 +51,14 @@ jobs:
           script: |
             set -e
             echo "🚀 [Deploy] Pulling latest code on GCP VM 1..."
-            cd /opt/ria-coolection-agent
+            cd /opt/ria-collection-agent
             git pull origin main
 
             echo "📦 [Deploy] Updating Python dependencies..."
-            /opt/ria-coolection-agent/backend/.venv/bin/pip install -r backend/requirements.txt
+            /opt/ria-collection-agent/backend/.venv/bin/pip install -r backend/requirements.txt
 
             echo "🗄️ [Deploy] Applying database migrations..."
-            /opt/ria-coolection-agent/backend/.venv/bin/python backend/setup_db.py
+            /opt/ria-collection-agent/backend/.venv/bin/python backend/setup_db.py
 
             echo "🔄 [Deploy] Restarting systemd services..."
             sudo systemctl restart ria-api ria-dialer ria-agent
