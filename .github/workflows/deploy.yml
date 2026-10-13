@@ -1,0 +1,70 @@
+name: CI & Auto-Deployment (GCP & Cloudflare)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # ============================================================================
+  # 1. TEST & VALIDATION (Runs on every PR and commit)
+  # ============================================================================
+  test:
+    name: Run Automated Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Run Unit Tests
+        run: |
+          cd backend
+          python -m unittest -v tests/test_dates.py
+
+  # ============================================================================
+  # 2. BACKEND AUTO-DEPLOY TO GOOGLE CLOUD VM 1 (Runs on merge to main)
+  # ============================================================================
+  deploy-backend:
+    name: Deploy to Google Cloud VM 1
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy updates over SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.GCP_VM1_HOST }}
+          username: ${{ secrets.GCP_VM1_USER }}
+          key: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            echo "🚀 [Deploy] Pulling latest code on GCP VM 1..."
+            cd /opt/ria-coolection-agent
+            git pull origin main
+
+            echo "📦 [Deploy] Updating Python dependencies..."
+            /opt/ria-coolection-agent/backend/.venv/bin/pip install -r backend/requirements.txt
+
+            echo "🗄️ [Deploy] Applying database migrations..."
+            /opt/ria-coolection-agent/backend/.venv/bin/python backend/setup_db.py
+
+            echo "🔄 [Deploy] Restarting systemd services..."
+            sudo systemctl restart ria-api ria-dialer ria-agent
+
+            echo "🔍 [Deploy] Verifying health check..."
+            sleep 4
+            curl -f http://127.0.0.1:5001/health || (echo "Health check failed!" && exit 1)
+
+            echo "✅ [Deploy] Backend updated and healthy!"

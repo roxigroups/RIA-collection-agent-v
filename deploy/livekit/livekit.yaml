@@ -1,0 +1,36 @@
+# LiveKit Server Configuration for VM 2 (GCP)
+# Place at: /etc/livekit/livekit.yaml on VM 2
+
+port: 7880
+bind_addresses:
+  - ""
+
+rtc:
+  udp_port: 7882
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 60000
+  use_external_ip: true
+
+audio:
+  # Inband Forward Error Correction (FEC): recovers lost audio packets on 4G/2G mobile signals
+  inband_fec: true
+  # Discontinuous Transmission (DTX): saves bandwidth during silence
+  dtx: true
+
+redis:
+  address: "localhost:6379"
+
+keys:
+  # Replace with a generated strong key & secret:
+  # e.g., openssl rand -hex 16 and openssl rand -hex 32
+  RIA_LIVEKIT_KEY: "CHANGE_ME_TO_STRONG_LIVEKIT_SECRET"
+
+logging:
+  json: false
+  level: info
+
+room:
+  auto_create: true
+  empty_timeout: 300
+  max_participants: 200

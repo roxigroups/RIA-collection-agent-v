@@ -1,0 +1,14 @@
+livekit-agents
+livekit-plugins-openai
+livekit-plugins-silero
+livekit-plugins-smallestai
+livekit-plugins-noise-cancellation
+python-dotenv
+livekit-api
+flask
+psycopg[binary]
+psycopg-pool
+gunicorn
+av
+numpy
+google-cloud-storage

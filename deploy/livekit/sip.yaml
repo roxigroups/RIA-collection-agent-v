@@ -1,0 +1,19 @@
+# LiveKit SIP Service Configuration for VM 2 (GCP)
+# Place at: /etc/livekit/sip.yaml on VM 2
+
+api_key: "RIA_LIVEKIT_KEY"
+api_secret: "CHANGE_ME_TO_STRONG_LIVEKIT_SECRET"
+ws_url: "ws://localhost:7880"
+
+redis:
+  address: "localhost:6379"
+
+sip_port: 5060
+rtp_port:
+  start: 10000
+  end: 20000
+
+use_external_ip: true
+
+logging:
+  level: info

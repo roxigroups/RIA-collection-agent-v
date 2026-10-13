@@ -1,0 +1,22 @@
+[Unit]
+Description=RIA Collection Agent - Flask API Server (Gunicorn)
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/ria-coolection-agent/backend
+EnvironmentFile=/opt/ria-coolection-agent/backend/.env
+Environment=DIALER_STANDALONE=1
+Environment=PORT=5001
+Environment=API_HOST=0.0.0.0
+ExecStart=/opt/ria-coolection-agent/backend/.venv/bin/gunicorn -c gunicorn_conf.py server:app
+Restart=always
+RestartSec=5
+LimitNOFILE=65535
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

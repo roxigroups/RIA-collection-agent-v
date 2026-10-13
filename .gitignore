@@ -1,0 +1,26 @@
+# misc
+.DS_Store
+
+# Python virtual environment & backend env
+.env*
+backend/.env
+backend/.venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Call database (customer names, phone numbers, invoices) stays out of git
+backend/auto_db.sqlite
+backend/auto_db.sqlite-wal
+backend/auto_db.sqlite-shm
+
+# Saved TTS audio for fixed lines (regenerated on demand)
+backend/tts_cache/
+# Customer audio saved with RIA_DEBUG_AUDIO=1 (private; delete after use)
+backend/debug_audio/
+
+# Database backups
+backups/
+
+# Call recordings (customer audio)
+backend/recordings/
