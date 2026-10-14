@@ -1,0 +1,8 @@
+name = "ria-collection-agent"
+main = "worker/index.js"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# Target VM 1 Backend API (Set this in Cloudflare Worker Settings or here)
+[vars]
+BACKEND_HOST = "http://YOUR_VM_1_EXTERNAL_IP:5001"
