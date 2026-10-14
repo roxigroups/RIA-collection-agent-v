@@ -9,6 +9,12 @@
     "binding": "ASSETS"
   },
   "vars": {
-    "BACKEND_URL": "http://34.93.250.66.sslip.io"
-  }
+    "BACKEND_URL": "https://api.riaaiagent.cc"
+  },
+  "routes": [
+    {
+      "pattern": "riaaiagent.cc",
+      "custom_domain": true
+    }
+  ]
 }
