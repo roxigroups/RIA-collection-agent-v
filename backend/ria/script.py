@@ -20,6 +20,9 @@ from ria.settings import BACKEND_DIR
 logger = logging.getLogger("ria-agent")
 
 TEXTS = ("COLLECTION_INSTRUCTIONS", "LANGUAGE_SWITCH_NOTE")
+DEFAULT_TEXTS = {
+    "LANGUAGE_SWITCH_NOTE": "[Note: The customer switched the conversation to {language}. Reply in natural {language}.]",
+}
 # Other names prompts.py may give an entry: the instructions written as RIA_SYSTEM_PROMPT
 # were left unused, and calls ran on the last working version
 ALIASES = {"COLLECTION_INSTRUCTIONS": "RIA_SYSTEM_PROMPT"}
@@ -31,6 +34,71 @@ LINES = (
 # Lines the app speaks after a tool instead of a second model reply (that took ~2.5 s),
 # which prompts.py has never had: these words until prompts.py gives its own
 DEFAULT_LINES = {
+    "COLLECTION_OPENINGS": {
+        "te": "నమస్కారం అండీ, నేను {company} నుంచి RIA ని మాట్లాడుతున్నాను. {customer} గారితో మాట్లాడవచ్చా అండీ?",
+        "hi": "नमस्ते जी, मैं {company} से RIA बोल रही हूँ। क्या मेरी बात {customer} जी से हो सकती है?",
+        "en": "Hello, I am RIA calling from {company}. May I speak with {customer}?",
+    },
+    "COLLECTION_WHO_ASK": {
+        "te": "మీరు {customer} గారేనా అండీ?",
+        "hi": "क्या आप {customer} जी बात कर रहे हैं?",
+        "en": "Are you {customer}?",
+    },
+    "COLLECTION_AMOUNT_LINES": {
+        "te": "{company} లో మీ invoice {invoice_no} కి సంబంధించి ₹{amount} balance ఉంది అండీ. {overdue}.",
+        "hi": "{company} में आपके invoice {invoice_no} के ₹{amount} बाकी हैं जी। {overdue}।",
+        "en": "This is regarding your invoice {invoice_no} with {company} for ₹{amount}, which is {overdue}.",
+    },
+    "DUE_PHRASES": {
+        "te": {
+            "overdue": "{days} రోజుల క్రితమే due అయింది",
+            "overdue_one": "నిన్ననే due అయింది",
+            "today": "ఈరోజే due date",
+            "upcoming": "ఇంకా {days} రోజుల్లో due ఉంది",
+        },
+        "hi": {
+            "overdue": "{days} दिन पहले due हो चुका है",
+            "overdue_one": "कल ही due हुआ था",
+            "today": "आज ही due date है",
+            "upcoming": "अगले {days} दिनों में due है",
+        },
+        "en": {
+            "overdue": "{days} days overdue",
+            "overdue_one": "1 day overdue",
+            "today": "due today",
+            "upcoming": "due in {days} days",
+        },
+    },
+    "DATE_READBACKS": {
+        "te": "మీరు {month} {day} ({weekday}) లోపు payment చేస్తానని చెప్పారు, correct అండీ?",
+        "hi": "आपने {day} {month} ({weekday}) तक payment करने का वादा किया है, सही है ना जी?",
+        "en": "You committed to payment by {weekday}, {month} {day}. Is that correct?",
+    },
+    "DATE_LIMIT_LINES": {
+        "te": "దయచేసి {month} {day} ({weekday}) లోపు payment complete చేయగలరా అండీ?",
+        "hi": "कृपया {day} {month} ({weekday}) तक payment clear कर दीजिए जी।",
+        "en": "Could you please complete the payment by {weekday}, {month} {day}?",
+    },
+    "COLLECTION_GOODBYES": {
+        "te": "సరేనండి, మీ సమయానికి ధన్యవాదాలు. హావ్ ఏ గుడ్ డే.",
+        "hi": "ठीक है जी, आपके समय के लिए धन्यवाद। आपका दिन शुभ हो।",
+        "en": "Thank you for your time. Have a good day.",
+    },
+    "COLLECTION_ARE_YOU_THERE": {
+        "te": "హలో అండీ, నా మాట వినిపిస్తోందా?",
+        "hi": "हेलो जी, क्या आप मुझे सुन पा रहे हैं?",
+        "en": "Hello, are you still there?",
+    },
+    "COLLECTION_REPEAT": {
+        "te": "క్షమించండి, మళ్లీ చెప్పగలరా?",
+        "hi": "माफ़ कीजिए, क्या आप दोहरा सकते हैं?",
+        "en": "Pardon me, could you repeat that?",
+    },
+    "UNKNOWN_CALLER": {
+        "te": "నమస్కారం అండీ, నేను {company} నుంచి RIA ని. మీకు ఏ విధంగా సహాయపడగలను?",
+        "hi": "नमस्ते जी, मैं {company} से RIA बोल रही हूँ। मैं आपकी क्या मदद कर सकती हूँ?",
+        "en": "Hello, this is RIA calling from {company}. How can I assist you today?",
+    },
     # Someone else answered: do they handle the payments? (the user's rule in prompts.py)
     "COLLECTION_PAYMENTS_ASK": {
         "te": "{customer} గారి payments, accounts మీరు చూసుకుంటారా అండీ?",
@@ -124,7 +192,7 @@ def load() -> SimpleNamespace:
 
         loaded = {}
         for name in TEXTS:
-            value = entry(name)
+            value = entry(name, DEFAULT_TEXTS.get(name))
             if not isinstance(value, str) or not value.strip():
                 raise ValueError(f"{name} is missing or empty")
             loaded[name] = value

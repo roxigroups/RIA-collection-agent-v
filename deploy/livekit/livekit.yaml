@@ -12,11 +12,6 @@ rtc:
   port_range_end: 60000
   use_external_ip: true
 
-audio:
-  # Inband Forward Error Correction (FEC): recovers lost audio packets on 4G/2G mobile signals
-  inband_fec: true
-  # Discontinuous Transmission (DTX): saves bandwidth during silence
-  dtx: true
 
 redis:
   address: "localhost:6379"
