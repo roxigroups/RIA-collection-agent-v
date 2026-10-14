@@ -39,12 +39,17 @@ async def main():
     elif not phone.startswith("+"):
         phone = f"+{digits}"
 
-    # Get first tenant
+    # Get first tenant and user from database
     with db.connection() as conn:
         tenant_row = conn.execute("SELECT id FROM tenants ORDER BY id LIMIT 1").fetchone()
-        tenant_id = tenant_row[0] if tenant_row else "TENANT-001"
+        tenant_id = (tenant_row.get("id") if isinstance(tenant_row, dict) else tenant_row[0]) if tenant_row else "TENANT-001"
         user_row = conn.execute("SELECT id, name FROM users WHERE tenant_id = %s LIMIT 1", (tenant_id,)).fetchone()
-        user_info = {"id": user_row[0], "name": user_row[1]} if user_row else {"id": "U-ADMIN", "name": "Admin"}
+        if user_row:
+            u_id = user_row.get("id") if isinstance(user_row, dict) else user_row[0]
+            u_name = user_row.get("name") if isinstance(user_row, dict) else user_row[1]
+            user_info = {"id": u_id, "name": u_name}
+        else:
+            user_info = {"id": "U-ADMIN", "name": "Admin"}
 
     print(f"Step 1: Queuing test call for {customer_name} ({phone}) in '{lang}' for ₹{amount}...")
     result = db.import_batch(
