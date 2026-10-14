@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 // The Flask API (backend/server.py). The browser only talks to this Next.js app,
 // which forwards /api/* there, so the sign-in cookie stays on one origin.
-const BACKEND_URL = process.env.BACKEND_URL || "http://127.0.0.1:5001";
+const BACKEND_URL = process.env.BACKEND_URL || "http://34.93.250.66.sslip.io";
 
 const nextConfig: NextConfig = {
   /* config options here */
