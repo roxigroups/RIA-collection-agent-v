@@ -9,6 +9,6 @@
     "binding": "ASSETS"
   },
   "vars": {
-    "BACKEND_URL": "http://34.93.250.66:5001"
+    "BACKEND_URL": "http://34.93.250.66.sslip.io"
   }
 }
