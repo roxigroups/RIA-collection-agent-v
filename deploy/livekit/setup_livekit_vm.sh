@@ -11,7 +11,7 @@ echo "=========================================================="
 
 # 1. Update system & install dependencies
 apt-get update
-apt-get install -y curl wget redis-server ufw
+apt-get install -y curl wget redis-server ufw docker.io
 
 # 2. Configure & start Redis
 systemctl enable redis-server
@@ -21,14 +21,11 @@ systemctl restart redis-server
 echo "📥 Downloading LiveKit Server..."
 curl -sSL https://get.livekit.io | bash
 
-# 4. Install LiveKit SIP binary
-echo "📥 Downloading LiveKit SIP..."
-SIP_VERSION=$(curl -s "https://api.github.com/repos/livekit/sip/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-ARCH="amd64"
-wget -q "https://github.com/livekit/sip/releases/download/${SIP_VERSION}/livekit-sip_linux_${ARCH}.tar.gz" -O /tmp/livekit-sip.tar.gz
-tar -xzf /tmp/livekit-sip.tar.gz -C /usr/local/bin livekit-sip
-chmod +x /usr/local/bin/livekit-sip
-rm -f /tmp/livekit-sip.tar.gz
+# 4. Pull official LiveKit SIP Docker image
+echo "📥 Pulling LiveKit SIP Docker image..."
+systemctl enable docker
+systemctl restart docker
+docker pull livekit/sip:latest
 
 # 5. Create config directory
 mkdir -p /etc/livekit
@@ -60,18 +57,22 @@ StandardError=journal
 WantedBy=multi-user.target
 EOF
 
-# 7. Create systemd service for LiveKit SIP
+# 7. Create systemd service for LiveKit SIP (Docker container with --net=host)
 cat << 'EOF' > /etc/systemd/system/livekit-sip.service
 [Unit]
-Description=LiveKit SIP Gateway
-After=network.target livekit-server.service
+Description=LiveKit SIP Gateway (Docker)
+After=network.target docker.service livekit-server.service
+Requires=docker.service
 Wants=livekit-server.service
 
 [Service]
 Type=simple
 User=root
 LimitNOFILE=65535
-ExecStart=/usr/local/bin/livekit-sip --config /etc/livekit/sip.yaml
+ExecStartPre=-/usr/bin/docker stop livekit-sip
+ExecStartPre=-/usr/bin/docker rm livekit-sip
+ExecStart=/usr/bin/docker run --name livekit-sip --net=host -v /etc/livekit/sip.yaml:/etc/livekit/sip.yaml livekit/sip:latest --config /etc/livekit/sip.yaml
+ExecStop=/usr/bin/docker stop livekit-sip
 Restart=always
 RestartSec=5
 StandardOutput=journal
