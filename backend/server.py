@@ -10,6 +10,7 @@ import functools
 import hashlib
 import logging
 import os
+import re
 import secrets
 import threading
 import time
@@ -19,6 +20,7 @@ from flask import Flask, g, jsonify, request, session
 
 load_dotenv()
 
+import email_service  # noqa: E402
 from dashboard_db import Dashboard  # noqa: E402
 from dialer import Dialer  # noqa: E402
 
@@ -182,6 +184,125 @@ def login():
 def logout():
     session.clear()
     return jsonify({"signed_in": False})
+
+
+# -- self-service sign-up & password reset --------------------------------------------
+
+def _is_valid_email(email: str) -> bool:
+    return bool(re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email.strip()))
+
+
+def _is_valid_password(password: str) -> bool:
+    return len(password) >= 8 and any(c.isalpha() for c in password) and any(c.isdigit() for c in password)
+
+
+@app.post("/api/auth/register/request")
+def register_request():
+    data = body()
+    company_name = str(data.get("companyName", "")).strip()
+    name = str(data.get("name", "")).strip()
+    email = str(data.get("email", "")).strip().lower()
+    phone = str(data.get("phone", "")).strip()
+    password = str(data.get("password", ""))
+
+    if not company_name or not name or not email or not password:
+        return jsonify({"error": "Company name, full name, email, and password are required."}), 400
+    if not _is_valid_email(email):
+        return jsonify({"error": "Please enter a valid email address."}), 400
+    if not _is_valid_password(password):
+        return jsonify({"error": "Password must be at least 8 characters long and contain both letters and numbers."}), 400
+    if DB.email_exists(email):
+        return jsonify({"error": "An account with this email already exists. Please sign in."}), 400
+
+    code = f"{secrets.randbelow(900000) + 100000}"
+    payload = {
+        "companyName": company_name,
+        "name": name,
+        "email": email,
+        "phone": phone,
+        "password": password,
+    }
+    DB.create_auth_verification(email, "signup", code, payload, ttl_minutes=15)
+    sent = email_service.send_signup_otp(email, name, code)
+    if not sent:
+        logger.warning("Failed to send signup OTP email to %s", email)
+    return jsonify({"ok": True, "message": f"Verification code sent to {email}"})
+
+
+@app.post("/api/auth/register/confirm")
+def register_confirm():
+    data = body()
+    email = str(data.get("email", "")).strip().lower()
+    code = str(data.get("code", "")).strip()
+
+    if not email or not code:
+        return jsonify({"error": "Email and verification code are required."}), 400
+
+    valid, payload, err = DB.verify_auth_code(email, "signup", code)
+    if not valid or not payload:
+        return jsonify({"error": err or "Invalid verification code"}), 400
+
+    try:
+        user = DB.complete_registration(payload)
+    except Exception as exc:
+        logger.exception("Failed to complete registration for %s: %s", email, exc)
+        return jsonify({"error": str(exc)}), 400
+
+    session.clear()
+    session["user_id"] = user["id"]
+    return jsonify({
+        "signed_in": True,
+        "user": {
+            "id": user["id"],
+            "n": user["name"],
+            "e": user["email"],
+            "role": user["role"],
+            "company": user["company"],
+        }
+    })
+
+
+@app.post("/api/auth/forgot-password/request")
+def forgot_password_request():
+    data = body()
+    email = str(data.get("email", "")).strip().lower()
+    if not email or not _is_valid_email(email):
+        return jsonify({"error": "Please enter a valid email address."}), 400
+
+    user = DB.get_user_by_email(email)
+    if not user:
+        # Prevent email enumeration: return standard success message
+        return jsonify({"ok": True, "message": "If an account exists with this email, a reset code has been sent."})
+
+    code = f"{secrets.randbelow(900000) + 100000}"
+    DB.create_auth_verification(email, "password_reset", code, ttl_minutes=15)
+    sent = email_service.send_password_reset_otp(email, user["name"], code)
+    if not sent:
+        logger.warning("Failed to send password reset OTP email to %s", email)
+    return jsonify({"ok": True, "message": "If an account exists with this email, a reset code has been sent."})
+
+
+@app.post("/api/auth/forgot-password/confirm")
+def forgot_password_confirm():
+    data = body()
+    email = str(data.get("email", "")).strip().lower()
+    code = str(data.get("code", "")).strip()
+    new_password = str(data.get("newPassword", ""))
+
+    if not email or not code or not new_password:
+        return jsonify({"error": "Email, reset code, and new password are required."}), 400
+    if not _is_valid_password(new_password):
+        return jsonify({"error": "Password must be at least 8 characters long and contain both letters and numbers."}), 400
+
+    valid, _, err = DB.verify_auth_code(email, "password_reset", code)
+    if not valid:
+        return jsonify({"error": err or "Invalid reset code"}), 400
+
+    updated = DB.reset_password(email, new_password)
+    if not updated:
+        return jsonify({"error": "User account not found."}), 404
+
+    return jsonify({"ok": True, "message": "Password updated successfully. You can now sign in."})
 
 
 # -- everything the dashboard shows ----------------------------------------------------

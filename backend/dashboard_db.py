@@ -3,10 +3,11 @@
 
 Everything is scoped to one tenant (the signed-in user's company).
 """
+import hashlib
 import math
 import re
 import secrets
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from psycopg.types.json import Json
 
@@ -131,6 +132,118 @@ class Dashboard(DatabaseDriver):
                 "FROM users u JOIN tenants t ON t.id = u.tenant_id WHERE u.id = %s AND u.status = 'Active'",
                 (user_id,),
             ).fetchone()
+
+    def email_exists(self, email: str) -> bool:
+        with self.connection() as conn:
+            row = conn.execute("SELECT 1 FROM users WHERE lower(email) = lower(%s)", (email.strip(),)).fetchone()
+            return bool(row)
+
+    def get_user_by_email(self, email: str) -> dict | None:
+        with self.connection() as conn:
+            return conn.execute(
+                "SELECT u.id, u.tenant_id, u.name, u.email, u.role, t.name AS company "
+                "FROM users u JOIN tenants t ON t.id = u.tenant_id "
+                "WHERE lower(u.email) = lower(%s) AND u.status = 'Active'",
+                (email.strip(),),
+            ).fetchone()
+
+    def create_auth_verification(self, email: str, purpose: str, code: str, payload: dict | None = None, ttl_minutes: int = 15) -> None:
+        code_hash = hashlib.sha256(code.strip().encode()).hexdigest()
+        expires_at = datetime.now(timezone.utc) + timedelta(minutes=ttl_minutes)
+        with self.connection() as conn:
+            conn.execute(
+                "DELETE FROM auth_verifications WHERE lower(email) = lower(%s) AND purpose = %s",
+                (email.strip(), purpose),
+            )
+            conn.execute(
+                """
+                INSERT INTO auth_verifications (email, purpose, code_hash, payload, expires_at)
+                VALUES (%s, %s, %s, %s, %s)
+                """,
+                (email.strip().lower(), purpose, code_hash, Json(payload or {}), expires_at),
+            )
+
+    def verify_auth_code(self, email: str, purpose: str, code: str) -> tuple[bool, dict | None, str | None]:
+        with self.connection() as conn:
+            row = conn.execute(
+                """
+                SELECT id, code_hash, payload, expires_at, attempts
+                FROM auth_verifications
+                WHERE lower(email) = lower(%s) AND purpose = %s
+                ORDER BY created_at DESC LIMIT 1
+                """,
+                (email.strip(), purpose),
+            ).fetchone()
+            if not row:
+                return False, None, "No active verification code found. Please request a new one."
+            if row["attempts"] >= 5:
+                conn.execute("DELETE FROM auth_verifications WHERE id = %s", (row["id"],))
+                return False, None, "Too many failed attempts. Please request a new code."
+            if datetime.now(timezone.utc) > row["expires_at"]:
+                conn.execute("DELETE FROM auth_verifications WHERE id = %s", (row["id"],))
+                return False, None, "Verification code has expired. Please request a new one."
+
+            code_hash = hashlib.sha256(code.strip().encode()).hexdigest()
+            if code_hash != row["code_hash"]:
+                conn.execute("UPDATE auth_verifications SET attempts = attempts + 1 WHERE id = %s", (row["id"],))
+                return False, None, "Invalid verification code. Please check and try again."
+
+            conn.execute("DELETE FROM auth_verifications WHERE id = %s", (row["id"],))
+            return True, row["payload"], None
+
+    def complete_registration(self, payload: dict) -> dict:
+        company_name = str(payload.get("companyName", "My Company")).strip()[:200]
+        full_name = str(payload.get("name", "Owner")).strip()[:100]
+        email = str(payload.get("email", "")).strip().lower()[:200]
+        phone = str(payload.get("phone", "")).strip()[:30]
+        password = str(payload.get("password", ""))
+
+        default_rules = {
+            "cap": 3, "starthour": "08:00", "endhour": "19:00", "cooldown_minutes": 5,
+            "ptpwindow_days": 7, "escalate_broken_threshold": 2, "blockdispute": True, "blockholiday": True,
+        }
+
+        with self.connection() as conn:
+            existing = conn.execute("SELECT 1 FROM users WHERE lower(email) = lower(%s)", (email,)).fetchone()
+            if existing:
+                raise ValueError("An account with this email already exists.")
+
+            count = conn.execute("SELECT COUNT(*) FROM tenants").fetchone()
+            c_val = count["count"] if isinstance(count, dict) else count[0]
+            tenant_id = f"TENANT-{c_val + 1:03d}"
+            user_id = f"U-{secrets.token_hex(4)}"
+
+            with conn.transaction():
+                conn.execute(
+                    "INSERT INTO tenants (id, name, gstin, caller_id) VALUES (%s, %s, %s, %s)",
+                    (tenant_id, company_name, f"PENDING-{tenant_id}", "RIA"),
+                )
+                conn.execute(
+                    "UPDATE tenants SET config = jsonb_set(config, '{rules}', (config->'rules') || %s::jsonb) WHERE id = %s",
+                    (Json(default_rules), tenant_id),
+                )
+                conn.execute(
+                    "INSERT INTO users (id, tenant_id, name, email, password_hash, role, phone) "
+                    "VALUES (%s, %s, %s, %s, crypt(%s, gen_salt('bf')), 'OW', %s)",
+                    (user_id, tenant_id, full_name, email, password, phone),
+                )
+
+            return {
+                "id": user_id,
+                "tenant_id": tenant_id,
+                "name": full_name,
+                "email": email,
+                "role": "OW",
+                "company": company_name,
+            }
+
+    def reset_password(self, email: str, new_password: str) -> bool:
+        with self.connection() as conn:
+            cursor = conn.execute(
+                "UPDATE users SET password_hash = crypt(%s, gen_salt('bf')) WHERE lower(email) = lower(%s)",
+                (new_password, email.strip()),
+            )
+            return cursor.rowcount > 0
 
     def audit(self, tenant_id: str, user_id: str | None, action: str, resource: str, resource_id: str,
               details: dict | None = None) -> None:
