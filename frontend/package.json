@@ -17,7 +17,6 @@
     "react-dom": "19.3.0"
   },
   "devDependencies": {
-    "@cloudflare/workerd-windows-64": "^1.20261014.1",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
