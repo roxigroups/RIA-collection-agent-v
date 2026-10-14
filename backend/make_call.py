@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import sys
+import time
 
 # Ensure backend directory is in path
 backend_dir = os.path.dirname(os.path.abspath(__file__))
@@ -26,20 +27,39 @@ async def main():
     db = Dashboard()
     dialer = Dialer(db)
 
-    print("Step 1: Queuing call from template for raheman automobiles (+919618580574)...")
+    phone = sys.argv[1] if len(sys.argv) > 1 else "+919618580574"
+    lang = sys.argv[2] if len(sys.argv) > 2 else "te"
+    customer_name = sys.argv[3] if len(sys.argv) > 3 else "Test Customer"
+    amount = sys.argv[4] if len(sys.argv) > 4 else "15000"
+
+    # Normalize phone: keep digits and ensure +91 prefix
+    digits = "".join(ch for ch in phone if ch.isdigit())
+    if len(digits) == 10:
+        phone = f"+91{digits}"
+    elif not phone.startswith("+"):
+        phone = f"+{digits}"
+
+    # Get first tenant
+    with db.connection() as conn:
+        tenant_row = conn.execute("SELECT id FROM tenants ORDER BY id LIMIT 1").fetchone()
+        tenant_id = tenant_row[0] if tenant_row else "TENANT-001"
+        user_row = conn.execute("SELECT id, name FROM users WHERE tenant_id = %s LIMIT 1", (tenant_id,)).fetchone()
+        user_info = {"id": user_row[0], "name": user_row[1]} if user_row else {"id": "U-ADMIN", "name": "Admin"}
+
+    print(f"Step 1: Queuing test call for {customer_name} ({phone}) in '{lang}' for ₹{amount}...")
     result = db.import_batch(
-        tenant_id="TENANT-001",
-        user={"id": "U-1dad3bb6", "name": "Admin"},
-        file_name="ria_call_sheet_template.csv",
-        name="Raheman Automobiles Test Call",
+        tenant_id=tenant_id,
+        user=user_info,
+        file_name="cli_test_call.csv",
+        name=f"Test Call - {customer_name}",
         rows=[{
-            "businessName": "raheman automobiles",
-            "name": "raheman automobiles",
-            "phone": "9618580574",
-            "invoiceNumber": "INV-2026-001",
-            "invoiceAmount": "18000",
+            "businessName": customer_name,
+            "name": customer_name,
+            "phone": phone,
+            "invoiceNumber": f"INV-TEST-{int(time.time()) % 10000}",
+            "invoiceAmount": amount,
             "invoiceDate": "2026-10-15",
-            "lang": "te",
+            "lang": lang,
         }],
         status="queued",
         start=True,
@@ -52,9 +72,10 @@ async def main():
         call_row = conn.execute(
             """
             SELECT id FROM outbound_calls 
-            WHERE phone = '+919618580574' AND status = 'queued' 
+            WHERE phone = %s AND status = 'queued' 
             ORDER BY created_at DESC LIMIT 1
-            """
+            """,
+            (phone,),
         ).fetchone()
 
     if not call_row:
