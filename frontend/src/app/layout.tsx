@@ -6,6 +6,13 @@ import { THEME_SCRIPT } from '@/lib/theme';
 export const metadata: Metadata = {
   title: 'RIA — Roxy Intelligent AI Telecalling Agent',
   description: 'Enterprise vernacular AI telecalling, automated collections, PTP tracking, and dispute management for distribution intelligence.',
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/icon.png', type: 'image/png' },
+    ],
+    apple: '/apple-icon.png',
+  },
 };
 
 export default function RootLayout({
