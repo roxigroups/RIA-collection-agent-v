@@ -18,7 +18,7 @@ import re
 import time
 from collections import deque
 from collections.abc import AsyncIterable
-from datetime import date
+from datetime import date, timedelta
 from typing import Annotated, Literal
 
 from livekit import rtc
@@ -174,7 +174,9 @@ def speakable(text: str) -> str:
     text = UNSPEAKABLE_RE.sub("", text)
     if (code := LEAKED_CODE_RE.search(text)):
         text = text[: code.start()]
-    return OPEN_BRACKET_RE.sub("", BRACKET_NOTE_RE.sub("", text))
+    text = OPEN_BRACKET_RE.sub("", BRACKET_NOTE_RE.sub("", text))
+    # Replace all-caps RIA with mixed-case Ria so TTS pronounces it as a name rather than letters R-I-A
+    return re.sub(r"\bRIA\b", "Ria", text)
 
 
 def is_plain_yes(text: str, customer_name: str) -> bool:
@@ -194,39 +196,70 @@ def is_plain_yes(text: str, customer_name: str) -> bool:
 def instructions(call: dict, language: str) -> str:
     """prompts.COLLECTION_INSTRUCTIONS with this call's sheet data and calendar."""
     today = dates.today()
-    due = date.fromisoformat(call["due_date"])
-    days = (today - due).days
-    overdue = (f"{days} days overdue" if days > 1 else "1 day overdue" if days == 1
-               else "due today" if days == 0 else f"not due yet: due in {-days} days")
+
+    # Data availability checks
+    has_amount = bool(call.get("amount") is not None and float(call["amount"]) > 0)
+    has_invoice = bool(call.get("invoice_no") and str(call["invoice_no"]).strip())
+    has_due = bool(call.get("due_date"))
+    customer_raw = (call.get("customer_name") or "").strip()
+    has_customer = bool(customer_raw and customer_raw.lower() not in ("customer", "unknown", "sir", "madam"))
+
+    due = None
+    if has_due:
+        try:
+            due_val = call["due_date"]
+            due = date.fromisoformat(due_val) if isinstance(due_val, str) else due_val
+        except Exception:
+            due = None
+
+    if due:
+        days = (today - due).days
+        overdue = (f"{days} days overdue" if days > 1 else "1 day overdue" if days == 1
+                   else "due today" if days == 0 else f"not due yet: due in {-days} days")
+        due_date_str = f"{due:%d %B %Y}"
+    else:
+        overdue = "not specified in follow-up records"
+        due_date_str = "not specified in follow-up records"
+
     business = call.get("business") or ""
     previous = call.get("previous_promised_date")
-    # Only a promise whose day has passed: a future one made the model offer that
-    # day back as the customer's answer
-    broken = previous and date.fromisoformat(previous) < today
-    inv_date = call.get("invoice_date")
-    if inv_date:
-        inv_dt = date.fromisoformat(inv_date) if isinstance(inv_date, str) else inv_date
-        inv_date_str = f"{inv_dt:%d %B %Y}"
-    else:
-        inv_date_str = f"{due:%d %B %Y}"
+    broken = False
+    if previous:
+        try:
+            prev_dt = date.fromisoformat(previous) if isinstance(previous, str) else previous
+            broken = prev_dt < today
+        except Exception:
+            broken = False
+
+    # Project tracks payment due date only; invoice billing date is not collected or invented
+    inv_date_str = "not specified in follow-up records"
+
+    latest = dates.latest_promise_date(call) or (today + timedelta(days=dates.extension_days(call)))
+    latest_date_str = f"{latest:%A, %d %B %Y}"
+    cal_days = max(45, min(370, (latest - today).days + 7))
+
+    amount_str = dates.format_inr(float(call["amount"])) if has_amount else "not specified in follow-up records"
+    invoice_no_str = call["invoice_no"] if has_invoice else "not specified in follow-up records"
+    customer_str = customer_raw if has_customer else "the customer"
+
     return fill(script.PROMPTS.COLLECTION_INSTRUCTIONS, dict(
-        company=call["company"],
-        customer=call["customer_name"],
+        company=call.get("company", ""),
+        customer=customer_str,
         customer_id=call.get("customer_code") or call.get("retailer_id") or "unknown",
-        business=f" ({business})" if business and business != call["customer_name"] else "",
+        business=f" ({business})" if business and business != customer_raw else "",
         business_name=business or "their business",
-        invoice_no=call["invoice_no"],
+        invoice_no=invoice_no_str,
         invoice_date=inv_date_str,
-        amount=dates.format_inr(float(call["amount"])),
-        balance_due=dates.format_inr(float(call["amount"])),
-        invoice_amount=dates.format_inr(float(call.get("invoice_amount") or call["amount"])),
-        due_date=f"{due:%d %B %Y}",
+        amount=amount_str,
+        balance_due=amount_str,
+        invoice_amount=amount_str,
+        due_date=due_date_str,
         overdue=overdue,
-        latest_date=f"{dates.latest_promise_date(call):%A, %d %B %Y}",
+        latest_date=latest_date_str,
         extension_days=dates.extension_days(call),
         previous_promised_date=f"{date.fromisoformat(previous):%d %B %Y}" if broken else "none (don't mention one)",
         today=f"{today:%A, %d %B %Y}",
-        calendar=dates.calendar(today, days=max(45, min(370, (dates.latest_promise_date(call) - today).days + 7))),
+        calendar=dates.calendar(today, days=cal_days),
         language=NAMES[language],
     ))
 
@@ -241,7 +274,10 @@ class CollectionAgent(Agent):
         self.language = language
         self.lines = lines
         self.stt_engine = stt
-        self.latest_date = dates.latest_promise_date(call)
+        self.has_amount = bool(call.get("amount") is not None and float(call["amount"]) > 0)
+        self.has_invoice = bool(call.get("invoice_no") and str(call["invoice_no"]).strip())
+        self.has_due = bool(call.get("due_date"))
+        self.latest_date = dates.latest_promise_date(call) or (dates.today() + timedelta(days=dates.extension_days(call)))
         self.verified = False       # the right person is on the line
         self.amount_told = False
         self.finished = False
@@ -308,9 +344,29 @@ class CollectionAgent(Agent):
         if self.amount_told:
             return
         self.amount_told = True
-        self.lines.fields["overdue"] = dates.overdue_phrase(date.fromisoformat(self._call["due_date"]), self.language)
-        logger.info("Call %s: customer verified; the app tells the balance", self.call_id)
-        self.say_line(script.PROMPTS.COLLECTION_AMOUNT_LINES)
+        if self.has_due:
+            try:
+                due_val = self._call["due_date"]
+                due_dt = date.fromisoformat(due_val) if isinstance(due_val, str) else due_val
+                self.lines.fields["overdue"] = dates.overdue_phrase(due_dt, self.language)
+            except Exception:
+                self.lines.fields["overdue"] = ""
+        else:
+            self.lines.fields["overdue"] = ""
+
+        logger.info("Call %s: customer verified; announcing follow-up", self.call_id)
+
+        # Adaptive spoken line matching available data
+        if self.has_invoice and self.has_amount:
+            chosen = script.PROMPTS.COLLECTION_AMOUNT_LINES
+        elif self.has_amount:
+            chosen = getattr(script.PROMPTS, "COLLECTION_AMOUNT_NO_INV", script.PROMPTS.COLLECTION_AMOUNT_LINES)
+        elif self.has_invoice:
+            chosen = getattr(script.PROMPTS, "COLLECTION_INV_NO_AMOUNT", script.PROMPTS.COLLECTION_AMOUNT_LINES)
+        else:
+            chosen = getattr(script.PROMPTS, "COLLECTION_GENERIC_FOLLOWUP", script.PROMPTS.COLLECTION_AMOUNT_LINES)
+
+        self.say_line(chosen)
         asyncio.create_task(self._remember_verified())
 
     async def _remember_verified(self) -> None:

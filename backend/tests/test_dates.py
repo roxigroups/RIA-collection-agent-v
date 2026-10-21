@@ -30,10 +30,14 @@ script = types.ModuleType("ria.script")
 script.base_language = lambda lines: "en"
 script.fill = lambda template, values: template.format(**values)
 script.pick = lambda value, language: value
-script.PROMPTS = types.SimpleNamespace(DUE_PHRASES={
-    "overdue": "{days} days overdue", "overdue_one": "1 day overdue",
-    "today": "due today", "upcoming": "due in {days} days",
-})
+script.PROMPTS = types.SimpleNamespace(
+    DUE_PHRASES={
+        "overdue": "{days} days overdue", "overdue_one": "1 day overdue",
+        "today": "due today", "upcoming": "due in {days} days",
+    },
+    COLLECTION_INSTRUCTIONS="{company} {customer} {amount} {balance_due} {invoice_no} {due_date} {overdue}",
+)
+script.load = lambda: script.PROMPTS
 ria.script = script
 sys.modules.setdefault("ria", ria)
 sys.modules.setdefault("ria.script", script)

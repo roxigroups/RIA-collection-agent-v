@@ -668,21 +668,22 @@ class Dashboard(DatabaseDriver):
         imports nothing and lists them (result "recent") so the user can choose; "call"
         calls them again; "skip" leaves them out.
 
-        Rows: {businessName, phone, invoiceNumber, invoiceDate (due date), invoiceAmount, lang}.
+        Rows: {businessName, phone, invoiceNumber, dueDate (or invoiceDate), invoiceAmount, lang}.
         """
         valid, skipped, again = [], [], []
         # A customer listed twice for one invoice would be called twice about it
         seen: dict[tuple[str, str], int] = {}
         for line, row in enumerate(rows, start=1):
+            date_field = row.get("dueDate") or row.get("due_date") or row.get("invoiceDate") or row.get("invoice_date")
             invoice, problem = parse_invoice({
                 "name": row.get("name") or row.get("businessName"), "phone": row.get("phone"),
                 "business": row.get("businessName") or "", "invoice_no": row.get("invoiceNumber"),
                 "amount": row.get("invoiceAmount") or row.get("amount"),
-                "due_date": row.get("invoiceDate") or row.get("dueDate"),
+                "due_date": date_field,
                 # RIA has opening lines in Telugu, Hindi and English; others open in the default
                 "language": code if (code := language_code(row.get("lang"))) in ("te", "hi", "en") else "",
             })
-            if invoice and str(row.get("invoiceNumber", "")).strip() == str(row.get("invoiceDate", "")).strip():
+            if invoice and row.get("invoiceNumber") and date_field and str(row.get("invoiceNumber", "")).strip() == str(date_field).strip():
                 # A mis-mapped column: RIA would read the date out as the invoice number
                 invoice, problem = None, "invoice number is the same as the date: check the columns"
             if invoice and (key := (invoice["phone"], invoice["invoice_no"].lower())) in seen:
@@ -718,18 +719,25 @@ class Dashboard(DatabaseDriver):
             )
             for inv in valid:
                 retailer_id = self._upsert_retailer(conn, tenant_id, inv)
-                invoice_id = conn.execute(
-                    """
-                    INSERT INTO invoices (retailer_id, invoice_number, amount, due_amount, due_date)
-                    VALUES (%s, %s, %s, %s, %s)
-                    ON CONFLICT (retailer_id, invoice_number) DO UPDATE
-                        SET due_amount = EXCLUDED.due_amount, due_date = EXCLUDED.due_date,
-                            amount = GREATEST(invoices.amount, EXCLUDED.amount)
-                    RETURNING id
-                    """,
-                    (retailer_id, inv["invoice_no"], inv["amount"], inv["amount"], inv["due_date"]),
-                ).fetchone()["id"]
-                self._refresh_retailer_totals(conn, retailer_id)
+                inv_no = inv["invoice_no"] or ""
+                inv_amount = float(inv["amount"]) if inv["amount"] is not None else 0.0
+                inv_due = inv["due_date"] or _now().date().isoformat()
+
+                invoice_id = None
+                if inv.get("has_invoice_no"):
+                    invoice_id = conn.execute(
+                        """
+                        INSERT INTO invoices (retailer_id, invoice_number, amount, due_amount, due_date)
+                        VALUES (%s, %s, %s, %s, %s)
+                        ON CONFLICT (retailer_id, invoice_number) DO UPDATE
+                            SET due_amount = EXCLUDED.due_amount, due_date = EXCLUDED.due_date,
+                                amount = GREATEST(invoices.amount, EXCLUDED.amount)
+                        RETURNING id
+                        """,
+                        (retailer_id, inv_no, inv_amount, inv_amount, inv_due),
+                    ).fetchone()["id"]
+                    self._refresh_retailer_totals(conn, retailer_id)
+
                 conn.execute(
                     """
                     INSERT INTO outbound_calls (id, tenant_id, batch_id, retailer_id, invoice_id, customer_name,
@@ -737,8 +745,8 @@ class Dashboard(DatabaseDriver):
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (secrets.token_hex(16), tenant_id, batch_id, retailer_id, invoice_id, inv["customer_name"],
-                     inv["business"], inv["phone"], inv["language"], inv["invoice_no"], inv["amount"],
-                     inv["due_date"], status),
+                     inv["business"], inv["phone"], inv["language"], inv_no, inv_amount,
+                     inv_due, status),
                 )
                 conn.execute(
                     "INSERT INTO campaign_contacts (id, tenant_id, retailer_id, name, phone) "

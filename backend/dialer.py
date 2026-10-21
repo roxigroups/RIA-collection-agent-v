@@ -39,40 +39,71 @@ def phone_e164(raw: str) -> str:
 
 
 def parse_invoice(row: dict) -> tuple[dict | None, str]:
-    """Cleans one imported row; returns (invoice, "") or (None, reason)."""
+    """Cleans one imported row; returns (invoice, "") or (None, reason).
+    
+    Phone number is strictly mandatory for placing a call. Name, invoice number,
+    due date, and amount are optional; missing values are handled gracefully.
+    """
     row = {k: str(v or "").strip() for k, v in row.items()}
-    missing = [c for c in ("name", "phone", "invoice_no", "amount", "due_date") if not row.get(c)]
-    if missing:
-        return None, f"missing {', '.join(missing)}"
-    phone = phone_e164(row["phone"])
+    raw_phone = row.get("phone") or row.get("phno") or ""
+    if not raw_phone:
+        return None, "missing phone number"
+    phone = phone_e164(raw_phone)
     if not phone:
-        return None, f"not an Indian mobile number: {row['phone']}"
-    try:
-        amount = float(re.sub(r"[₹,\s]|Rs\.?|INR", "", row["amount"], flags=re.I))
-    except ValueError:
-        return None, f"bad amount: {row['amount']}"
-    if amount <= 0:
-        return None, "amount must be more than 0"
-    for fmt in DATE_FORMATS:
+        return None, f"not an Indian mobile number: {raw_phone}"
+
+    # Name and business
+    raw_name = (row.get("name") or row.get("business") or row.get("business_name") or "").strip()
+    name = raw_name[:80] if raw_name else "Customer"
+    business = (row.get("business") or row.get("business_name") or "")[:120].strip()
+
+    # Amount (optional; must be non-negative if provided)
+    amount = None
+    raw_amount = row.get("amount") or row.get("invoice_amount") or ""
+    if raw_amount:
         try:
-            due = datetime.strptime(row["due_date"], fmt).date()
-            break
+            parsed_amt = float(re.sub(r"[₹,\s]|Rs\.?|INR", "", raw_amount, flags=re.I))
+            if parsed_amt < 0:
+                return None, "amount cannot be negative"
+            amount = parsed_amt
         except ValueError:
-            continue
-    else:
-        return None, f"bad due_date (use DD-MM-YYYY): {row['due_date']}"
-    language = row.get("language", "").lower()
+            return None, f"bad amount: {raw_amount}"
+
+    # Due date (optional)
+    due = None
+    raw_due = row.get("due_date") or row.get("dueDate") or row.get("invoice_date") or ""
+    if raw_due:
+        for fmt in DATE_FORMATS:
+            try:
+                due = datetime.strptime(raw_due, fmt).date()
+                break
+            except ValueError:
+                continue
+        else:
+            return None, f"bad due_date (use DD-MM-YYYY): {raw_due}"
+
+    # Invoice number (optional)
+    invoice_no = (row.get("invoice_no") or row.get("invoice_number") or "").strip()[:60]
+
+    # Language (optional)
+    language = row.get("language", "").lower().strip()
     if language and language not in LANGUAGES:
         return None, f"unsupported language: {row['language']} (Telugu, Hindi or English)"
+
     return {
-        "customer_name": row["name"][:80],
+        "customer_name": name,
         "phone": phone,
-        "business": row.get("business", "")[:120],
-        "invoice_no": row["invoice_no"][:60],
+        "business": business,
+        "invoice_no": invoice_no,
         "amount": amount,
-        "due_date": due.isoformat(),
+        "due_date": due.isoformat() if due else None,
         "language": LANGUAGES.get(language, ""),
+        "has_customer_name": bool(raw_name),
+        "has_invoice_no": bool(invoice_no),
+        "has_amount": amount is not None and amount > 0,
+        "has_due_date": due is not None,
     }, ""
+
 
 
 def calling_hours() -> tuple[int, int]:

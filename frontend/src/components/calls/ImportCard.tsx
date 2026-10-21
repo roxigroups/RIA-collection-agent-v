@@ -141,7 +141,7 @@ export function ImportPreviewModalContent({
             <tr>
               <th>Business Name</th>
               <th>Phone</th>
-              <th>Invoice Date</th>
+              <th>Due Date</th>
               <th>Invoice Number</th>
               <th className="right">Invoice Amount</th>
             </tr>
@@ -154,11 +154,13 @@ export function ImportPreviewModalContent({
                 </td>
                 <td className="mono">{v.phone}</td>
                 <td className="mono" style={{ fontSize: '12px' }}>
-                  {v.invoiceDate || v.dueDate || '—'}
+                  {v.dueDate || v.invoiceDate || '—'}
                 </td>
-                <td className="mono">{v.invoiceNumber || v.code}</td>
+                <td className="mono">{v.invoiceNumber || '—'}</td>
                 <td className="num right" style={{ color: 'var(--navy)' }}>
-                  ₹{Number(v.invoiceAmount || v.amount || 0).toLocaleString('en-IN')}
+                  {Number(v.invoiceAmount || v.amount || 0) > 0
+                    ? `₹${Number(v.invoiceAmount || v.amount || 0).toLocaleString('en-IN')}`
+                    : '—'}
                 </td>
               </tr>
             ))}
@@ -321,6 +323,11 @@ export default function ImportCard() {
       return;
     }
 
+    if (rawRows.length - 1 > 100) {
+      showToast(`The uploaded CSV contains ${rawRows.length - 1} contacts. Maximum allowed is 100 contacts per file.`);
+      return;
+    }
+
     const headers = rawRows[0].map((h) =>
       h
         .toLowerCase()
@@ -336,7 +343,7 @@ export default function ImportCard() {
 
     const cBusiness = mapCol('business_name');
     const cPhone = mapCol('phno');
-    const cInvDate = mapCol('invoice_date');
+    const cDueDate = mapCol('due_date') !== -1 ? mapCol('due_date') : mapCol('invoice_date');
     const cInvNum = mapCol('invoice_number');
     const cInvAmt = mapCol('invoice_amount');
     const cLang = mapCol('lang');
@@ -347,47 +354,35 @@ export default function ImportCard() {
 
     for (let i = 1; i < rawRows.length; i++) {
       const r = rawRows[i];
-      const businessName = cBusiness !== -1 ? r[cBusiness] : '';
       const phoneRaw = cPhone !== -1 ? r[cPhone] : '';
       const cleanPhone = phoneRaw.replace(/[^0-9]/g, '');
 
-      if (!businessName || businessName.trim().length === 0) {
-        rejects.push({ row: r, reason: 'Business name is missing' });
-        continue;
-      }
+      // Only valid Indian phone number is strictly required to place a call
       if (cleanPhone.length < 10) {
-        rejects.push({ row: r, reason: `Invalid phone number: ${phoneRaw}` });
+        rejects.push({ row: r, reason: `Invalid phone number: ${phoneRaw || 'empty'}` });
         continue;
       }
 
-      // RIA tells the customer the invoice, amount and due date, so none of them is made up
-      const invoiceDateVal = cInvDate !== -1 && r[cInvDate] ? r[cInvDate].trim() : '';
+      const rawBusiness = cBusiness !== -1 && r[cBusiness] ? r[cBusiness].trim() : '';
+      const businessName = rawBusiness || 'Customer';
+
+      const dueDateVal = cDueDate !== -1 && r[cDueDate] ? r[cDueDate].trim() : '';
       const invoiceNumVal = cInvNum !== -1 && r[cInvNum] ? r[cInvNum].trim() : '';
       const amountVal = cInvAmt !== -1 && r[cInvAmt] ? parseFloat(r[cInvAmt].replace(/[^0-9.-]/g, '')) || 0 : 0;
-      if (!invoiceNumVal) {
-        rejects.push({ row: r, reason: 'Invoice number is missing' });
-        continue;
+      if (amountVal > 0) {
+        totalOd += amountVal;
       }
-      if (!invoiceDateVal) {
-        rejects.push({ row: r, reason: 'Invoice (due) date is missing' });
-        continue;
-      }
-      if (amountVal <= 0) {
-        rejects.push({ row: r, reason: 'Invoice amount is missing or zero' });
-        continue;
-      }
-      totalOd += amountVal;
 
       valid.push({
-        code: invoiceNumVal,
-        businessName: businessName.trim(),
-        name: businessName.trim(),
+        code: invoiceNumVal || '—',
+        businessName: businessName,
+        name: businessName,
         phone: cleanPhone.length === 10 ? `+91 ${cleanPhone.slice(0, 5)} ${cleanPhone.slice(5)}` : `+${cleanPhone}`,
         invoiceNumber: invoiceNumVal,
-        invoiceDate: invoiceDateVal,
+        invoiceDate: dueDateVal,
+        dueDate: dueDateVal,
         invoiceAmount: amountVal,
         amount: amountVal,
-        dueDate: invoiceDateVal,
         lang: cLang !== -1 && r[cLang] ? r[cLang].trim() : 'Telugu',
       });
     }
@@ -408,7 +403,8 @@ export default function ImportCard() {
           name: v.name,
           phone: v.phone,
           invoiceNumber: v.invoiceNumber,
-          invoiceDate: v.invoiceDate,
+          dueDate: v.dueDate || v.invoiceDate,
+          invoiceDate: v.dueDate || v.invoiceDate,
           invoiceAmount: v.invoiceAmount,
           lang: v.lang,
         })),
@@ -465,7 +461,7 @@ export default function ImportCard() {
 
   const downloadTemplate = () => {
     const rows = [
-      ['business name', 'phno', 'invoice date', 'invoice number', 'invoice amount'],
+      ['business name', 'phno', 'due date', 'invoice number', 'invoice amount'],
       ['Example Kirana Store (replace me)', 'replace with a real mobile', '2026-10-15', 'INV-2026-001', '18000'],
       ['Example Super Bazar (replace me)', 'replace with a real mobile', '2026-10-20', 'INV-2026-002', '38000'],
     ];
@@ -477,7 +473,7 @@ export default function ImportCard() {
     <div className="card" style={{ marginBottom: '18px' }}>
       <div className="card-h">
         <h3>Import Daily Call List (CSV)</h3>
-        <span className="sub">Drop your ERP export sheet or distributor ledger</span>
+        <span className="sub">Drop your ERP export sheet or distributor ledger (Max 100 contacts)</span>
         <div className="r">
           <button className="btn btn-ghost btn-sm" onClick={downloadTemplate}>
             Download template
@@ -501,9 +497,9 @@ export default function ImportCard() {
             onClick={() => fileInputRef.current?.click()}
           >
             <div className="big">📄</div>
-            <div style={{ fontWeight: 600, marginTop: '6px' }}>Drag & drop your call sheet CSV here</div>
+            <div style={{ fontWeight: 600, marginTop: '6px' }}>Drag & drop your call sheet CSV here (Max 100 contacts)</div>
             <div className="meta" style={{ marginTop: '4px' }}>
-              or click to browse from computer (UTF-8 encoded)
+              or click to browse from computer (UTF-8 encoded, up to 100 contacts)
             </div>
             <input
               ref={fileInputRef}
@@ -526,26 +522,26 @@ export default function ImportCard() {
                 color: 'var(--t3)',
               }}
             >
-              Template Structure:
+              Template Structure (Max 100 contacts):
             </div>
             <div>
               <span className="mono">business name</span>{' '}
-              <span className="meta">Retailer store or commercial trade name</span>
+              <span className="meta">Retailer store or commercial trade name [Optional]</span>
             </div>
             <div>
-              <span className="mono">phno</span> <span className="meta">10-digit Indian mobile / contact number</span>
+              <span className="mono">phno</span> <span className="meta">10-digit Indian mobile / contact number [Required]</span>
             </div>
             <div>
-              <span className="mono">invoice date</span>{' '}
-              <span className="meta">Invoice issue or due date (YYYY-MM-DD)</span>
+              <span className="mono">due date</span>{' '}
+              <span className="meta">Payment due date (YYYY-MM-DD) [Optional]</span>
             </div>
             <div>
               <span className="mono">invoice number</span>{' '}
-              <span className="meta">ERP invoice or bill reference (e.g. INV-2026-001)</span>
+              <span className="meta">ERP invoice or bill reference (e.g. INV-2026-001) [Optional]</span>
             </div>
             <div>
               <span className="mono">invoice amount</span>{' '}
-              <span className="meta">Total overdue or billed invoice balance (INR)</span>
+              <span className="meta">Total overdue or pending balance (INR) [Optional]</span>
             </div>
           </div>
         </div>

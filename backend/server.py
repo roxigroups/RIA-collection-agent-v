@@ -27,7 +27,7 @@ from dialer import Dialer  # noqa: E402
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ria-server")
 
-MAX_IMPORT_ROWS = 5000
+MAX_IMPORT_ROWS = 100
 
 # F = full, A = act, V = view only, X = no access
 PERM = {
@@ -327,7 +327,7 @@ def import_batch():
     if not isinstance(rows, list) or not rows:
         return jsonify({"error": "No rows to call"}), 400
     if len(rows) > MAX_IMPORT_ROWS:
-        return jsonify({"error": f"At most {MAX_IMPORT_ROWS} rows per import"}), 400
+        return jsonify({"error": f"At most {MAX_IMPORT_ROWS} contacts per import"}), 400
     result = DB.import_batch(
         g.user["tenant_id"], g.user, str(data.get("fileName") or "call_sheet.csv")[:200],
         str(data.get("name") or "")[:200], [r for r in rows if isinstance(r, dict)],

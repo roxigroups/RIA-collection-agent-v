@@ -27,7 +27,9 @@ DEFAULT_TEXTS = {
 # were left unused, and calls ran on the last working version
 ALIASES = {"COLLECTION_INSTRUCTIONS": "RIA_SYSTEM_PROMPT"}
 LINES = (
-    "COLLECTION_OPENINGS", "COLLECTION_WHO_ASK", "COLLECTION_AMOUNT_LINES", "DUE_PHRASES", "DATE_READBACKS", "DATE_LIMIT_LINES",
+    "COLLECTION_OPENINGS", "COLLECTION_OPENINGS_GENERIC", "COLLECTION_WHO_ASK", "COLLECTION_AMOUNT_LINES",
+    "COLLECTION_AMOUNT_NO_INV", "COLLECTION_INV_NO_AMOUNT", "COLLECTION_GENERIC_FOLLOWUP",
+    "DUE_PHRASES", "DATE_READBACKS", "DATE_LIMIT_LINES",
     "COLLECTION_GOODBYES", "COLLECTION_ARE_YOU_THERE", "COLLECTION_REPEAT", "UNKNOWN_CALLER",
     "COLLECTION_PAYMENTS_ASK", "COLLECTION_MESSAGE", "COLLECTION_WHEN_AVAILABLE", "CALLBACK_TIME_ASK",
 )
@@ -35,9 +37,14 @@ LINES = (
 # which prompts.py has never had: these words until prompts.py gives its own
 DEFAULT_LINES = {
     "COLLECTION_OPENINGS": {
-        "te": "నమస్కారం అండీ, నేను {company} నుంచి RIA ని మాట్లాడుతున్నాను. {customer} గారితో మాట్లాడవచ్చా అండీ?",
-        "hi": "नमस्ते जी, मैं {company} से RIA बोल रही हूँ। क्या मेरी बात {customer} जी से हो सकती है?",
-        "en": "Hello, I am RIA calling from {company}. May I speak with {customer}?",
+        "te": "నమస్కారం అండీ, నేను {company} నుంచి రియా ని మాట్లాడుతున్నాను. {customer} గారితో మాట్లాడవచ్చా అండీ?",
+        "hi": "नमस्ते जी, मैं {company} से रिया बोल रही हूँ। क्या मेरी बात {customer} जी से हो सकती है?",
+        "en": "Hello, I am Ria calling from {company}. May I speak with {customer}?",
+    },
+    "COLLECTION_OPENINGS_GENERIC": {
+        "te": "నమస్కారం అండీ, నేను {company} నుంచి రియా ని మాట్లాడుతున్నాను. మేనేజర్ గారితో లేదా accounts చూసుకునే వారితో మాట్లాడవచ్చా అండీ?",
+        "hi": "नमस्ते जी, मैं {company} से रिया बोल रही हूँ। क्या मेरी बात ओनर या अकाउंट्स देखने वाले से हो सकती है?",
+        "en": "Hello, I am Ria calling from {company}. May I speak with the owner or accounts in-charge?",
     },
     "COLLECTION_WHO_ASK": {
         "te": "మీరు {customer} గారేనా అండీ?",
@@ -48,6 +55,21 @@ DEFAULT_LINES = {
         "te": "{company} లో మీ invoice {invoice_no} కి సంబంధించి ₹{amount} balance ఉంది అండీ. {overdue}.",
         "hi": "{company} में आपके invoice {invoice_no} के ₹{amount} बाकी हैं जी। {overdue}।",
         "en": "This is regarding your invoice {invoice_no} with {company} for ₹{amount}, which is {overdue}.",
+    },
+    "COLLECTION_AMOUNT_NO_INV": {
+        "te": "{company} లో మీ account లో ₹{amount} balance due ఉంది అండీ. {overdue}.",
+        "hi": "{company} में आपके अकाउंट में ₹{amount} बाकी हैं जी। {overdue}।",
+        "en": "This is regarding your pending balance of ₹{amount} with {company}, which is {overdue}.",
+    },
+    "COLLECTION_INV_NO_AMOUNT": {
+        "te": "నేను {company} నుంచి మీ invoice {invoice_no} payment follow-up గురించి కాల్ చేస్తున్నాను అండీ.",
+        "hi": "मैं {company} से आपके invoice {invoice_no} के पेमेंट फ़ॉलो-अप के सिलसिले में बात कर रही हूँ जी।",
+        "en": "I am calling regarding payment follow-up for your invoice {invoice_no} with {company}.",
+    },
+    "COLLECTION_GENERIC_FOLLOWUP": {
+        "te": "నేను {company} నుంచి మీ pending payment follow-up గురించి కాల్ చేస్తున్నాను అండీ.",
+        "hi": "मैं {company} से आपके पेंडिंग पेमेंट फ़ॉलो-अप के सिलसिले में बात कर रही हूँ जी।",
+        "en": "I am calling regarding pending payment follow-up with {company}.",
     },
     "DUE_PHRASES": {
         "te": {
@@ -95,9 +117,9 @@ DEFAULT_LINES = {
         "en": "Pardon me, could you repeat that?",
     },
     "UNKNOWN_CALLER": {
-        "te": "నమస్కారం అండీ, నేను {company} నుంచి RIA ని. మీకు ఏ విధంగా సహాయపడగలను?",
-        "hi": "नमस्ते जी, मैं {company} से RIA बोल रही हूँ। मैं आपकी क्या मदद कर सकती हूँ?",
-        "en": "Hello, this is RIA calling from {company}. How can I assist you today?",
+        "te": "నమస్కారం అండీ, నేను {company} నుంచి రియా ని. మీకు ఏ విధంగా సహాయపడగలను?",
+        "hi": "नमस्ते जी, मैं {company} से रिया बोल रही हूँ। मैं आपकी क्या मदद कर सकती हूँ?",
+        "en": "Hello, this is Ria calling from {company}. How can I assist you today?",
     },
     # Someone else answered: do they handle the payments? (the user's rule in prompts.py)
     "COLLECTION_PAYMENTS_ASK": {
@@ -107,9 +129,9 @@ DEFAULT_LINES = {
     },
     # ...they don't: the message for the customer, then when to call back
     "COLLECTION_MESSAGE": {
-        "te": "దయచేసి {customer} గారికి {company} accounts team నుంచి RIA call చేశారని చెప్పండి.",
-        "hi": "कृपया {customer} जी को बता दीजिए कि {company} accounts team से RIA का call आया था।",
-        "en": "Please tell {customer} that RIA from the {company} accounts team called.",
+        "te": "దయచేసి {customer} గారికి {company} accounts team నుంచి రియా call చేశారని చెప్పండి.",
+        "hi": "कृपया {customer} जी को बता दीजिए कि {company} accounts team से रिया का call आया था।",
+        "en": "Please tell {customer} that Ria from the {company} accounts team called.",
     },
     "COLLECTION_WHEN_AVAILABLE": {
         "te": "{customer} గారు ఎప్పుడు అందుబాటులో ఉంటారు?",

@@ -73,9 +73,9 @@ def load_call(participant) -> dict | None:
 
 
 def noise_filter():
-    """NOISE_CANCELLATION: "bvc" removes background noise and other voices (tuned for
-    8 kHz phone audio), "nc" only noise, "off" none."""
-    mode = os.getenv("NOISE_CANCELLATION", "bvc").lower()
+    """NOISE_CANCELLATION: "off" disables filter (recommended for self-hosted LiveKit to
+    prevent 404 license stalls); "bvc" or "nc" requires LiveKit Cloud."""
+    mode = os.getenv("NOISE_CANCELLATION", "off").lower()
     if mode == "off":
         return None
     return noise_cancellation.NC() if mode == "nc" else noise_cancellation.BVCTelephony()
@@ -154,18 +154,51 @@ async def entrypoint(ctx: JobContext) -> None:
     language = opening_language((call or {}).get("language"), settings.DEFAULT_LANGUAGE, prompts.COLLECTION_OPENINGS)
 
     tts = voice.make_tts()
-    fields = {"company": (call or {}).get("company", ""), "customer": (call or {}).get("customer_name", "")}
+    customer_name = (call or {}).get("customer_name", "").strip()
+    has_name = bool(customer_name and customer_name.lower() not in ("customer", "unknown", "sir", "madam"))
+    company_name = (call or {}).get("company", "")
+    fields = {"company": company_name, "customer": customer_name if has_name else ""}
+
+    has_amount = bool(call and call.get("amount") is not None and float(call["amount"]) > 0)
+    has_inv = bool(call and call.get("invoice_no") and str(call["invoice_no"]).strip())
+    has_due = bool(call and call.get("due_date"))
+
     if call:
-        fields.update(invoice_no=call["invoice_no"], amount=dates.format_inr(float(call["amount"])),
-                      overdue=dates.overdue_phrase(date.fromisoformat(call["due_date"]), language))
+        amount_str = dates.format_inr(float(call["amount"])) if has_amount else ""
+        overdue_str = ""
+        if has_due:
+            try:
+                due_val = call["due_date"]
+                due_dt = date.fromisoformat(due_val) if isinstance(due_val, str) else due_val
+                overdue_str = dates.overdue_phrase(due_dt, language)
+            except Exception:
+                overdue_str = ""
+        fields.update(invoice_no=call.get("invoice_no") or "", amount=amount_str, overdue=overdue_str)
+
     lines = voice.FixedLines(tts, fields)
-    # Made while the phone rings: the greeting, and the balance for the moment they say yes
-    opening = pick(prompts.COLLECTION_OPENINGS, language) if call else pick(prompts.UNKNOWN_CALLER, language)
+
+    # Made while the phone rings: adaptive greeting and follow-up line
+    if call:
+        opening = pick(prompts.COLLECTION_OPENINGS, language) if has_name else pick(getattr(prompts, "COLLECTION_OPENINGS_GENERIC", prompts.COLLECTION_OPENINGS), language)
+    else:
+        opening = pick(prompts.UNKNOWN_CALLER, language)
+
     lines.prepare(opening)
     if call:
-        lines.prepare(pick(prompts.COLLECTION_AMOUNT_LINES, language))
-        lines.prepare(pick(prompts.COLLECTION_WHO_ASK, language))
+        if has_inv and has_amount:
+            amt_lines = prompts.COLLECTION_AMOUNT_LINES
+        elif has_amount:
+            amt_lines = getattr(prompts, "COLLECTION_AMOUNT_NO_INV", prompts.COLLECTION_AMOUNT_LINES)
+        elif has_inv:
+            amt_lines = getattr(prompts, "COLLECTION_INV_NO_AMOUNT", prompts.COLLECTION_AMOUNT_LINES)
+        else:
+            amt_lines = getattr(prompts, "COLLECTION_GENERIC_FOLLOWUP", prompts.COLLECTION_AMOUNT_LINES)
+
+        lines.prepare(pick(amt_lines, language))
+        who_line = prompts.COLLECTION_WHO_ASK if has_name else getattr(prompts, "COLLECTION_PAYMENTS_ASK", prompts.COLLECTION_WHO_ASK)
+        lines.prepare(pick(who_line, language))
         lines.prepare(pick(prompts.CALLBACK_TIME_ASK, language))  # no call details: from the disk cache
+
 
     if not await wait_until_answered(ctx, participant):
         logger.info("Call in %s was not answered; nothing to do", ctx.room.name)
