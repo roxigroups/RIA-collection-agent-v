@@ -29,11 +29,21 @@ ria.__path__ = [str(Path(__file__).resolve().parents[1] / "ria")]
 script = types.ModuleType("ria.script")
 script.base_language = lambda lines: "en"
 script.fill = lambda template, values: template.format(**values)
-script.pick = lambda value, language: value
+script.pick = lambda value, language: value.get(language, value.get("en", value)) if isinstance(value, dict) else value
 script.PROMPTS = types.SimpleNamespace(
     DUE_PHRASES={
-        "overdue": "{days} days overdue", "overdue_one": "1 day overdue",
-        "today": "due today", "upcoming": "due in {days} days",
+        "te": {
+            "overdue": "{days} రోజుల క్రితమే due అయింది", "overdue_one": "నిన్ననే due అయింది",
+            "today": "ఈరోజే due date", "upcoming": "ఇంకా {days} రోజుల్లో due ఉంది",
+        },
+        "hi": {
+            "overdue": "{days} दिन पहले due हो चुका है", "overdue_one": "कल ही due हुआ था",
+            "today": "आज ही due date है", "upcoming": "अगले {days} दिनों में due है",
+        },
+        "en": {
+            "overdue": "{days} days overdue", "overdue_one": "1 day overdue",
+            "today": "due today", "upcoming": "due in {days} days",
+        },
     },
     COLLECTION_INSTRUCTIONS="{company} {customer} {amount} {balance_due} {invoice_no} {due_date} {overdue}",
 )

@@ -37,6 +37,8 @@ FALSE_INTERRUPTION_TIMEOUT = env_float("FALSE_INTERRUPTION_TIMEOUT", 1.5)
 # Words transcribed before she stops: 0 = on their voice at once. 1 waited for the
 # transcriber and kept her talking ~1 s over the customer
 INTERRUPT_MIN_WORDS = int(env_float("INTERRUPT_MIN_WORDS", 0))
+# Silence response timeout: seconds before Ria asks "are you there?" (default 7.0s)
+USER_AWAY_TIMEOUT = env_float("USER_AWAY_TIMEOUT", 7.0)
 
 # Prices for the per-call cost line in the logs (USD)
 LLM_USD_PER_M = (0.40, 0.10, 1.60)  # gpt-4.1-mini: input, cached input, output per 1M tokens

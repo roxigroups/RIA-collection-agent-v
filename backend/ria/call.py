@@ -87,6 +87,7 @@ def make_session(ctx: JobContext, stt, tts) -> AgentSession:
         llm=voice.make_llm(),
         tts=tts,
         vad=ctx.proc.userdata["vad"],
+        user_away_timeout=settings.USER_AWAY_TIMEOUT,
         turn_handling={
             "turn_detection": "vad",
             "endpointing": {"min_delay": settings.ENDPOINTING_MIN_DELAY, "max_delay": settings.ENDPOINTING_MAX_DELAY},
@@ -333,7 +334,7 @@ async def entrypoint(ctx: JobContext) -> None:
     async def ask_if_there() -> None:
         asked_at = time.monotonic()  # an answer that starts mid-question counts
         await (await lines.say(session, pick(prompts.COLLECTION_ARE_YOU_THERE, agent.language)))
-        await asyncio.sleep(15)
+        await asyncio.sleep(settings.USER_AWAY_TIMEOUT)
         if silences["last_speech"] < asked_at and not agent.finished:
             logger.info("Call %s: no response, hanging up", call_id)
             session.shutdown()
@@ -352,7 +353,7 @@ async def entrypoint(ctx: JobContext) -> None:
                             timing["customer_done"] - silences["last_speech"], session.agent_state)
             if timing["customer_done"] - silences["last_speech"] >= 0.6:
                 asyncio.create_task(check_heard(silences["last_speech"], timing["customer_done"]))
-        # 15 s with nobody talking (phone put down): ask once, then hang up
+        # 7 s with nobody talking (phone put down): ask once, then hang up
         if ev.new_state != "away" or agent.finished:
             return
         silences["count"] += 1

@@ -177,17 +177,95 @@ def format_inr(amount: float) -> str:
 
 
 
+TE_COUNT_WORDS = {
+    1: "ఒక", 2: "రెండు", 3: "మూడు", 4: "నాలుగు", 5: "ఐదు",
+    6: "ఆరు", 7: "ఏడు", 8: "ఎనిమిది", 9: "తొమ్మిది", 10: "పది",
+    11: "పదకొండు", 12: "పన్నెండు", 13: "పదమూడు", 14: "పద్నాలుగు", 15: "పదిహేను",
+    16: "పదహారు", 17: "పదిహేడు", 18: "పద్దెనిమిది", 19: "పంతొమ్మిది", 20: "ఇరవై",
+    21: "ఇరవై ఒకటి", 22: "ఇరవై రెండు", 23: "ఇరవై మూడు", 24: "ఇరవై నాలుగు", 25: "ఇరవై ఐదు",
+    26: "ఇరవై ఆరు", 27: "ఇరవై ఏడు", 28: "ఇరవై ఎనిమిది", 29: "ఇరవై తొమ్మిది", 30: "ముప్పై",
+    31: "ముప్పై ఒకటి", 32: "ముప్పై రెండు", 33: "ముప్పై మూడు", 34: "ముప్పై నాలుగు", 35: "ముప్పై ఐదు",
+    36: "ముప్పై ఆరు", 37: "ముప్పై ఏడు", 38: "ముప్పై ఎనిమిది", 39: "ముప్పై తొమ్మిది", 40: "నలభై",
+    41: "నలభై ఒకటి", 42: "నలభై రెండు", 43: "నలభై మూడు", 44: "నలభై నాలుగు", 45: "నలభై ఐదు",
+    46: "నలభై ఆరు", 47: "నలభై ఏడు", 48: "నలభై ఎనిమిది", 49: "నలభై తొమ్మిది", 50: "యాభై",
+    51: "యాభై ఒకటి", 52: "యాభై రెండు", 53: "యాభై మూడు", 54: "యాభై నాలుగు", 55: "యాభై ఐదు",
+    56: "యాభై ఆరు", 57: "యాభై ఏడు", 58: "యాభై ఎనిమిది", 59: "యాభై తొమ్మిది", 60: "అరవై",
+    65: "అరవై ఐదు", 70: "డెబ్బై", 75: "డెబ్బై ఐదు", 80: "ఎనభై", 85: "ఎనభై ఐదు",
+    90: "తొంబై", 95: "తొంబై ఐదు", 100: "వంద",
+}
+
+HI_COUNT_WORDS = {
+    1: "एक", 2: "दो", 3: "तीन", 4: "चार", 5: "पांच",
+    6: "छह", 7: "सात", 8: "आठ", 9: "नौ", 10: "दस",
+    11: "ग्यारह", 12: "बारह", 13: "तेरह", 14: "चौदह", 15: "पंद्रह",
+    16: "सोलह", 17: "सत्रह", 18: "अठारह", 19: "उन्नीस", 20: "बीस",
+    21: "इक्कीस", 22: "बाईस", 23: "तेईस", 24: "चौबीस", 25: "पच्चीस",
+    26: "छब्बीस", 27: "सत्ताईस", 28: "अट्ठाईस", 29: "उनतीस", 30: "तीस",
+    31: "इकतीस", 32: "बत्तीस", 33: "तैंतीस", 34: "चौंतीस", 35: "पैंतीस",
+    36: "छत्तीस", 37: "सैंतीस", 38: "अड़तीस", 39: "उनतालीस", 40: "चालीस",
+    45: "पैंतालीस", 50: "पचास", 55: "पचपन", 60: "साठ", 65: "पैंसठ",
+    70: "सत्तर", 75: "पचहत्तर", 80: "अस्सी", 85: "पचासी", 90: "नब्बे",
+    95: "पंचानवे", 100: "सौ",
+}
+
+
+def te_number_word(n: int) -> str:
+    if n in TE_COUNT_WORDS:
+        return TE_COUNT_WORDS[n]
+    if 20 < n < 100:
+        tens = (n // 10) * 10
+        units = n % 10
+        t_str = TE_COUNT_WORDS.get(tens, "")
+        u_str = TE_COUNT_WORDS.get(units, "")
+        if t_str and u_str:
+            return f"{t_str} {u_str}"
+    if 100 <= n < 1000:
+        hundreds = n // 100
+        rem = n % 100
+        h_prefix = "నూట" if hundreds == 1 else f"{TE_COUNT_WORDS.get(hundreds, str(hundreds))} వందల"
+        if rem == 0:
+            return "వంద" if hundreds == 1 else f"{TE_COUNT_WORDS.get(hundreds, str(hundreds))} వందలు"
+        return f"{h_prefix} {te_number_word(rem)}"
+    return str(n)
+
+
+def hi_number_word(n: int) -> str:
+    if n in HI_COUNT_WORDS:
+        return HI_COUNT_WORDS[n].strip()
+    if 20 < n < 100:
+        tens = (n // 10) * 10
+        units = n % 10
+        t_str = HI_COUNT_WORDS.get(tens, "")
+        u_str = HI_COUNT_WORDS.get(units, "")
+        if t_str and u_str:
+            return f"{t_str} {u_str}"
+    if 100 <= n < 1000:
+        hundreds = n // 100
+        rem = n % 100
+        h_prefix = "एक सौ" if hundreds == 1 else f"{HI_COUNT_WORDS.get(hundreds, str(hundreds))} सौ"
+        if rem == 0:
+            return h_prefix
+        return f"{h_prefix} {hi_number_word(rem)}"
+    return str(n)
+
+
+def format_day_count(days: int, language: str) -> str:
+    """Format a count of days into words for the customer's language.
+    Amounts stay in digits/English, while day counts are spoken in the customer's language."""
+    if language == "te":
+        return te_number_word(days)
+    if language == "hi":
+        return hi_number_word(days)
+    return str(days)
+
+
 def overdue_phrase(due: date, language: str) -> str:
-
     """The {overdue} part of the amount line (prompts.DUE_PHRASES)."""
-
     days = (today() - due).days
-
     phrases = pick(script.PROMPTS.DUE_PHRASES, language)
-
     kind = "overdue" if days > 1 else "overdue_one" if days == 1 else "today" if days == 0 else "upcoming"
-
-    return fill(phrases[kind], {"days": abs(days)})
+    day_str = format_day_count(abs(days), language)
+    return fill(phrases[kind], {"days": day_str})
 
 
 

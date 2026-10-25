@@ -54,7 +54,9 @@ AGREES_RE = re.compile(
     re.I,
 )
 REFUSAL_RE = re.compile(
-    r"కుదర|లేదు|లేదండ|కాదు|అవ్వదు|చేయలేను|కట్టలేను|नहीं|नही|मुश्किल|can'?t|cannot|not possible|\bno\b", re.I
+    r"కుదర|లేదు|లేదండ|కాదు|అవ్వదు|చేయలేను|కట్టలేను|కట్టను|చెల్లించను|ఇవ్వను|ఇయ్యను"
+    r"|नहीं|नही|मुश्किल|नहीं दूँ|नहीं दूंग|नहीं भरूँ|नहीं भरूंग|नहीं देंगे"
+    r"|can'?t|cannot|not possible|won'?t pay|will not pay|\bno\b", re.I
 )
 # "No problem" says yes, though it has a "no" in it ("పర్లేదు" ends in "లేదు")
 NO_PROBLEM_RE = re.compile(
@@ -169,14 +171,28 @@ BRACKET_NOTE_RE = re.compile(r"\([^()]*\)|\[[^\[\]]*\]")
 OPEN_BRACKET_RE = re.compile(r"[(\[][^)\]]*$")
 
 
-def speakable(text: str) -> str:
+def speakable(text: str, language: str = "") -> str:
     """The model's reply as it may be spoken (and recorded)."""
     text = UNSPEAKABLE_RE.sub("", text)
     if (code := LEAKED_CODE_RE.search(text)):
         text = text[: code.start()]
     text = OPEN_BRACKET_RE.sub("", BRACKET_NOTE_RE.sub("", text))
     # Replace all-caps RIA with mixed-case Ria so TTS pronounces it as a name rather than letters R-I-A
-    return re.sub(r"\bRIA\b", "Ria", text)
+    text = re.sub(r"\bRIA\b", "Ria", text)
+    # Convert standalone day counts before day words into customer's native words
+    if language in ("te", ""):
+        text = re.sub(
+            r"(?<![\d₹$.,])(\d{1,3})\s*(రోజులు|రోజుల|రోజుల్లో|రోజు)\b",
+            lambda m: f"{dates.format_day_count(int(m.group(1)), 'te')} {m.group(2)}",
+            text,
+        )
+    if language in ("hi", ""):
+        text = re.sub(
+            r"(?<![\d₹$.,])(\d{1,3})\s*(दिनों|दिन)\b",
+            lambda m: f"{dates.format_day_count(int(m.group(1)), 'hi')} {m.group(2)}",
+            text,
+        )
+    return text
 
 
 def is_plain_yes(text: str, customer_name: str) -> bool:
@@ -213,9 +229,7 @@ def instructions(call: dict, language: str) -> str:
             due = None
 
     if due:
-        days = (today - due).days
-        overdue = (f"{days} days overdue" if days > 1 else "1 day overdue" if days == 1
-                   else "due today" if days == 0 else f"not due yet: due in {-days} days")
+        overdue = dates.overdue_phrase(due, language)
         due_date_str = f"{due:%d %B %Y}"
     else:
         overdue = "not specified in follow-up records"
@@ -314,6 +328,8 @@ class CollectionAgent(Agent):
         self.time_asked_at: int | None = None
         # A part payment under the minimum (30% of the balance) was questioned once already
         self.part_minimum_asked = False
+        # Proposed 30% partial payment after customer payment refusal (offered once)
+        self.refusal_offered_partial = False
         # Set by the call: RIA's last line was cut off by the customer talking
         self.last_line_interrupted = False
         # Set by the call: say the goodbye for an outcome and hang up; voicemail
@@ -417,7 +433,7 @@ class CollectionAgent(Agent):
                 if (code := LEAKED_CODE_RE.search(pending)):
                     # A tool call written out as text: say what came before it, nothing after
                     if pending[: code.start()].strip():
-                        yield speakable(pending[: code.start()])
+                        yield speakable(pending[: code.start()], self.language)
                     async for _ in chunks:
                         pass
                     return
@@ -425,10 +441,10 @@ class CollectionAgent(Agent):
                     continue
                 cut = max(pending.rfind(" "), pending.rfind("\n"))
                 if cut > 0:
-                    yield speakable(pending[: cut + 1])
+                    yield speakable(pending[: cut + 1], self.language)
                     pending = pending[cut + 1:]
             if pending:
-                yield speakable(pending)
+                yield speakable(pending, self.language)
 
         async for frame in Agent.default.tts_node(self, clean(text), model_settings):
             yield frame
@@ -738,6 +754,21 @@ class CollectionAgent(Agent):
         minimum = self._part_minimum()
         return f" Below the minimum part payment ({dates.format_inr(minimum)})." if 0 < (amount or 0) < minimum else ""
 
+    def _already_offered_partial(self) -> bool:
+        """Check whether Ria has already proposed the 30% partial payment option."""
+        if self.refusal_offered_partial:
+            return True
+        partial_offer_re = re.compile(
+            r"30\s*%|30\s*శాతం|30\s*प्रतिशत|\bpartial\b|కనీసం 30|at least 30|30 percent",
+            re.I
+        )
+        for item in getattr(self.chat_ctx, "items", []):
+            if getattr(item, "role", None) == "assistant":
+                text = getattr(item, "text_content", "") or ""
+                if partial_offer_re.search(text):
+                    return True
+        return False
+
     def _read_back(self, when: date) -> llm.ToolResult:
         if when > self.latest_date:
             self.limit_offered_at = len(self.customer_texts)
@@ -808,14 +839,15 @@ class CollectionAgent(Agent):
         DELIVERY_ISSUE: goods not received, short, damaged or returned.
         INVOICE_COPY_REQUESTED: asks for an invoice copy, statement or ledger.
         CALLBACK_REQUESTED: busy now, or the customer isn't there; call another time.
-        PAYMENT_REFUSED: clearly won't pay and gives none of the reasons above.
+        PAYMENT_REFUSED: clearly won't pay and gives none of the reasons above (only after offering 30% partial payment once).
         CUSTOMER_UPSET: angry, abusive or complaining about the company or the calls.
         WRONG_NUMBER: they don't know the customer or the business.
         DO_NOT_CALL: asks not to be called again.
         EXTENSION_REQUESTED: can pay only after the latest date accounts allow.
         OTHER: none of these.
         When two fit, the reason wins: a dispute, delivery issue or "already paid" over
-        PAYMENT_REFUSED. An angry "I won't pay" is PAYMENT_REFUSED, not CUSTOMER_UPSET."""
+        PAYMENT_REFUSED. If a customer initially refuses payment (e.g. "I won't pay" / "కట్టను"),
+        propose paying 30% once before recording PAYMENT_REFUSED."""
         return await self._finish(code, promised_date, promised_amount, notes)
 
     async def _finish(self, code: str, promised_date: str, promised_amount: float, notes: str):
@@ -830,6 +862,20 @@ class CollectionAgent(Agent):
         if code == "DO_NOT_CALL" and not any(DO_NOT_CALL_RE.search(t) for t in self.customer_texts[-3:]):
             return ("Not saved: they haven't asked not to be called again. If that is what they mean, ask them "
                     "once whether they want no more calls about this invoice.")
+
+        if code == "PAYMENT_REFUSED" and self.has_amount and not self._already_offered_partial():
+            self.refusal_offered_partial = True
+            minimum = self._part_minimum()
+            min_str = dates.format_inr(minimum)
+            balance_str = dates.format_inr(float(self._call["amount"]))
+            logger.info("Call %s: customer refused payment; proposing 30%% partial payment (%s)", self.call_id, min_str)
+            return llm.ToolResult(
+                f"Do not end the call yet. The customer refused payment. Acknowledge respectfully and ask ONCE "
+                f"if they can pay at least 30% ({min_str} of {balance_str}) for now. If they agree, get their payment date "
+                f"and call check_payment_date. If they refuse this 30% partial payment offer as well, accept their refusal "
+                f"politely and call finish_call with PAYMENT_REFUSED.",
+                reply_required=True,
+            )
 
         if code == "EXTENSION_REQUESTED":
             if when and when <= self.latest_date:
