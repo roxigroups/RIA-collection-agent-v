@@ -203,14 +203,65 @@ class TestPaidClaimsAndPTP(unittest.IsolatedAsyncioTestCase):
 
     def test_is_plain_yes_avoids_false_verification(self):
         """Ensure sentences containing the name but meaning someone else (e.g. 'నేను వికాస్ మీరా.') do not verify."""
-        from ria.agent import is_plain_yes
+        from ria.agent import is_plain_yes, Agent
+        # Valid affirmative confirmations:
         self.assertTrue(is_plain_yes("వికాస్", "vikas"))
         self.assertTrue(is_plain_yes("వికాస్ అండీ", "vikas"))
         self.assertTrue(is_plain_yes("నేనే వికాస్", "vikas"))
         self.assertTrue(is_plain_yes("వికాస్ మాట్లాడుతున్నాను", "vikas"))
+        self.assertTrue(is_plain_yes("అవునండి", "vikas"))
+        self.assertTrue(is_plain_yes("అవును", "vikas"))
+        self.assertTrue(is_plain_yes("హా", "vikas"))
+        self.assertTrue(is_plain_yes("హా, నేనే", "vikas"))
+        self.assertTrue(is_plain_yes("నేనే", "vikas"))
+        self.assertTrue(is_plain_yes("speaking", "vikas"))
+        self.assertTrue(is_plain_yes("yes", "vikas"))
 
-        # Phrases with name that are NOT confirmation:
+        # Phrases with negative/third-party meaning must NEVER verify:
+        self.assertFalse(is_plain_yes("ఆ లేదండి నేను కసిన.", "vikas"))
+        self.assertFalse(is_plain_yes("ఆ లేదండి", "vikas"))
+        self.assertFalse(is_plain_yes("లేదండి", "vikas"))
+        self.assertFalse(is_plain_yes("కాదండి", "vikas"))
+        self.assertFalse(is_plain_yes("ఆయన లేరండి", "vikas"))
+        self.assertFalse(is_plain_yes("ఆయన లేడు", "vikas"))
+        self.assertFalse(is_plain_yes("రాంగ్ నంబర్", "vikas"))
+        self.assertFalse(is_plain_yes("ఎవరండీ మాట్లాడేది?", "vikas"))
+        self.assertFalse(is_plain_yes("నేను వికాస్ కాదు", "vikas"))
         self.assertFalse(is_plain_yes("నేను వికాస్ మీరా.", "vikas"))
         self.assertFalse(is_plain_yes("వికాస్ బయటికి వెళ్ళాడు", "vikas"))
         self.assertFalse(is_plain_yes("వికాస్ కాదు", "vikas"))
         self.assertFalse(is_plain_yes("వికాస్ లేడు", "vikas"))
+
+    def test_said_who_they_are_guards(self):
+        """Ensure _said_who_they_are rejects non-customer utterances and accepts genuine confirmations."""
+        call = {
+            "call_id": "test-301",
+            "customer_name": "Vikas",
+            "amount": "2026",
+            "invoice_no": "123456",
+            "company": "roxygroups",
+        }
+        agent = CollectionAgent(call, "te", MagicMock(), MagicMock())
+        
+        # Someone else / third party utterances:
+        agent.customer_texts = ["ఆ లేదండి నేను కసిన."]
+        self.assertFalse(agent._said_who_they_are())
+
+        agent.customer_texts = ["నేను వికాస్ కాదు"]
+        self.assertFalse(agent._said_who_they_are())
+
+        agent.customer_texts = ["ఆయన లేరండి"]
+        self.assertFalse(agent._said_who_they_are())
+
+        agent.customer_texts = ["రాంగ్ నంబర్ అండీ"]
+        self.assertFalse(agent._said_who_they_are())
+
+        # Genuine customer confirmations:
+        agent.customer_texts = ["అవునండి"]
+        self.assertTrue(agent._said_who_they_are())
+
+        agent.customer_texts = ["హా, నేనే వికాస్ ని"]
+        self.assertTrue(agent._said_who_they_are())
+
+        agent.customer_texts = ["వికాస్ మాట్లాడుతున్నాను"]
+        self.assertTrue(agent._said_who_they_are())

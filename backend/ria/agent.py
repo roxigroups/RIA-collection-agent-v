@@ -36,15 +36,16 @@ DB = DatabaseDriver()
 # A clear "yes" to "am I speaking with Ravi garu?": the app tells the balance at once,
 # without waiting for the model. Anything else (questions, "busy", "no") goes to it
 YES_WORDS = {
-    "హా", "ఆ", "ఆఁ", "అవును", "జీ", "సరే", "ఓకే", "నేనే",
+    "హా", "ఆఁ", "అవును", "జీ", "సరే", "ఓకే", "నేనే",
     "हाँ", "हां", "हा", "जी", "हाँजी", "yes", "yeah", "yep", "speaking", "haan", "han", "ji", "ok", "okay",
 }
 YES_STEMS = ("అవున", "ఆవున", "ఔన", "ఆనండ", "ఆఉండ", "అవుండ", "చెప్ప", "చెపండ", "మాట్లాడుతున్న", "సరేనండ", "బోలియే", "बोलिए", "बोलो", "बोल रह", "मैं ही",
              "tell me")
 NOT_YES = (
-    "కాదు", "కాద", "వేరే", "రాంగ్", "ఎవరు", "ఏంటి", "ఎందుకు", "బిజీ", "తర్వాత", "లేదు",
-    "नहीं", "नही", "गलत", "कौन", "क्या", "क्यों", "बाद में", "व्यस्त", "बिज़ी", "बिजी",
-    "no", "not", "wrong", "who", "what", "why", "busy", "later", "?",
+    "కాదు", "కాద", "వేరే", "రాంగ్", "ఎవరు", "ఎవరండి", "ఏంటి", "ఎందుకు", "బిజీ", "తర్వాత",
+    "లేదు", "లేద", "లేరు", "లేర", "లేడు", "లేడ", "వద్దు", "వద్ద", "కుదర", "కట్ట", "ఇవ్వ",
+    "नहीं", "नही", "गलत", "कौन", "क्या", "क्यों", "बाद में", "व्यस्त", "बिज़ी", "बिजी", "ना", "मत",
+    "no", "not", "wrong", "who", "what", "why", "busy", "later", "don't", "cant", "cannot", "won't", "?",
 )
 # Agreeing ("సరేండి. అప్పటికి కడతాను.") or saying no to a date RIA read back
 AGREES_RE = re.compile(
@@ -124,8 +125,8 @@ IDENTITY_RE = re.compile(
 WHO_QUESTION_RE = re.compile(r"\bwho\b|ఎవరు|ఎవరండి|యవరండి|कौन", re.I)
 # Not the customer, or not now: "కాదు", "ఆయన లేరు", "wrong number", "call later" go to the model
 NOT_THEM_RE = re.compile(
-    r"కాదు|కాద|వేరే|రాంగ్|లేరు|లేడు|లేదు|బయట|బిజీ|తర్వాత|కాల్ చేయ|ఫోన్ చేయ"
-    r"|नहीं|नही|गलत|बाहर|व्यस्त|बिज़ी|बिजी|बाद में|कॉल कर"
+    r"కాదు|కాద|వేరే|రాంగ్|లేరు|లేర|లేడు|లేడ|లేదు|లేద|వద్దు|వద్ద|కుదర|బయట|బిజీ|తర్వాత|కాల్ చేయ|ఫోన్ చేయ"
+    r"|नहीं|नही|गलत|बाहर|व्यस्त|बिज़ी|बिजी|बाद में|कॉल कर|ना|मत"
     r"|\b(?:no|not|wrong|busy|later|out)\b",
     re.I,
 )
@@ -216,6 +217,8 @@ def is_plain_yes(text: str, customer_name: str) -> bool:
         return False
     if any(w in words for w in NOT_YES if w.isascii()):
         return False
+    if NOT_THEM_RE.search(lowered):
+        return False
     if "?" not in text and says_name(text, customer_name):  # "వసీమా?" asks, it doesn't answer
         # Only treat as plain yes if it is just their name ("వికాస్"), name with polite particle ("వికాస్ అండీ"), or explicit self-identification
         if (len(words) == 1 or
@@ -223,6 +226,8 @@ def is_plain_yes(text: str, customer_name: str) -> bool:
             "నేనే" in lowered or "మాట్లాడుతున్న" in lowered or "बोल रहा" in lowered):
             return True
         return False
+    if words == ["ఆ"]:
+        return True
     return any(w in YES_WORDS for w in words) or any(
         (stem in lowered) if " " in stem else any(w.startswith(stem) for w in words) for stem in YES_STEMS
     )
@@ -734,10 +739,17 @@ class CollectionAgent(Agent):
     def _said_who_they_are(self) -> bool:
         """A yes to "am I speaking with Ravi garu?", "నేనే", or "I handle payments"."""
         name = self._call["customer_name"]
-        return any(is_plain_yes(t, name)
-                   or ((IDENTITY_RE.search(t) or says_name(t, name)) and not WHO_QUESTION_RE.search(t) and "?" not in t)
-                   or re.search(r"(?:^|\W)(?:అవున|ఆవున|ఔన|ఆనండ|ఆఉండ|అవుండ|हाँ|हां)|\b(?:yes|yeah|correct)\b", t, re.I)
-                   for t in self.customer_texts)
+        for t in self.customer_texts:
+            if NOT_THEM_RE.search(t) or any(w in t for w in ("కాదు", "కాద", "లేదు", "లేద", "లేరు", "లేర", "లేడు", "రాంగ్", "వేరే", "wrong")):
+                continue
+            if is_plain_yes(t, name):
+                return True
+            if not WHO_QUESTION_RE.search(t) and "?" not in t:
+                if "నేనే" in t or "మాట్లాడుతున్న" in t or "बोल रहा" in t or IDENTITY_RE.search(t):
+                    return True
+                if re.search(r"(?:^|\W)(?:అవున|ఆవున|ఔన|ఆనండ|ఆఉండ|అవుండ|हाँ|हां)|\b(?:yes|yeah|correct)\b", t, re.I):
+                    return True
+        return False
 
     @llm.function_tool
     async def switch_language(
