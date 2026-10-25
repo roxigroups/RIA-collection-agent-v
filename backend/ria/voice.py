@@ -26,7 +26,16 @@ logger = logging.getLogger("ria-agent")
 
 # Words the customer may say that the transcriber should spell right: the call adds
 # the customer's and the company's names
-STT_KEYWORDS = ["RIA", "payment", "invoice", "UPI", "PhonePe", "Google Pay", "అవునండి", "నేనే", "కట్టేశాను", "చేస్తాను"]
+STT_KEYWORDS = [
+    "RIA", "payment", "invoice", "UPI", "PhonePe", "Google Pay",
+    "అవునండి", "నేనే", "కట్టేశాను", "చేస్తాను",
+    # Negations & Refusals (Telugu)
+    "కట్టను", "కట్టనండి", "కట్టేది లేదు", "కట్టలేను", "కాదు", "కాదండి", "లేదు", "లేదండి", "కుదరదు", "డబ్బులు లేవు", "ఇవ్వను",
+    # Negations & Refusals (Hindi)
+    "नहीं दूँगा", "नहीं देंगे", "नहीं भरूँगा", "पैसे नहीं हैं", "गलत नंबर", "नहीं",
+    # Negations & Refusals (English)
+    "won't pay", "cannot pay", "not him", "wrong number", "no funds",
+]
 
 
 def _takes_hints(model: str) -> bool:

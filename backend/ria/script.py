@@ -32,6 +32,7 @@ LINES = (
     "DUE_PHRASES", "DATE_READBACKS", "DATE_LIMIT_LINES",
     "COLLECTION_GOODBYES", "COLLECTION_ARE_YOU_THERE", "COLLECTION_REPEAT", "UNKNOWN_CALLER",
     "COLLECTION_PAYMENTS_ASK", "COLLECTION_MESSAGE", "COLLECTION_WHEN_AVAILABLE", "CALLBACK_TIME_ASK",
+    "COLLECTION_CONFIRM_PAID",
 )
 # Lines the app speaks after a tool instead of a second model reply (that took ~2.5 s),
 # which prompts.py has never had: these words until prompts.py gives its own
@@ -143,6 +144,12 @@ DEFAULT_LINES = {
         "te": "తప్పకుండా అండీ. ఏ time కి call చేయమంటారు? సరిగ్గా ఆ time కే call చేస్తాను.",
         "hi": "ज़रूर जी। किस time पर call करूँ? ठीक उसी time पर call करूँगी।",
         "en": "Of course. What time should I call? I'll call you exactly then.",
+    },
+    # Confirming an ambiguous single payment claim ("కట్టానండి") to avoid mishearing refusal ("కట్టనండి")
+    "COLLECTION_CONFIRM_PAID": {
+        "te": "మీరు payment ఇప్పటికే చేశారా అండీ?",
+        "hi": "क्या आप पेमेंट पहले ही कर चुके हैं जी?",
+        "en": "Have you already completed the payment?",
     },
 }
 # Goodbyes for outcomes prompts.py has none for (it uses the general one otherwise)

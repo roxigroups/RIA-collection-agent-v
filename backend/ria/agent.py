@@ -75,6 +75,18 @@ PAID_CLAIM_RE = re.compile(
     r"|भेज दिए|दे दिया|दे दिए|डाल दिया)",
     re.I,
 )
+# Unambiguous payment claims: mentions method, date, or completion particle.
+# When a claim is NOT explicit (just a bare "కట్టానండి" or "కట్టాను" without method/date),
+# RIA confirms once ("మీరు payment ఇప్పటికే చేశారా అండీ?") to avoid mishearing refusal ("కట్టనండి").
+EXPLICIT_PAID_RE = re.compile(
+    r"already paid|paid already|\b(?:i|we) (?:have |had )?(?:already )?paid\b|payment (?:is |was )?(?:made|done|completed)"
+    r"|\b(?:i|we) (?:have )?(?:made|done|sent|transferred) (?:the )?payment"
+    r"|చెల్లించే[శస]ా|కట్టే[శస]ా|పేమెంట్\s*అయి|ఆల్రెడీ|నిన్న|మొన్న"
+    r"|" + _PAID_WITH + r"\s*(?:\S+\s*){0,2}?(?:చే[శస]ే[శస]ా|చే[శస]ా[ననుంమ]|చే[శస]ా|పంప|వే[శస]ా|అయి)"
+    r"|(?:पेमेंट|भुगतान|पैसे|payment)\s*(?:\S+\s*){0,2}?(?:कर दिया|कर दी|कर चुका|कर चुकी|हो गया|हो गई|भेज दिया"
+    r"|भेज दिए|दे दिया|दे दिए|डाल दिया)",
+    re.I,
+)
 # Answers to a date read-back that say something else than yes, from the review patch:
 # "I already paid", "call me" or "I'm busy" contradict it, so nothing is saved
 CONTRADICTS_RE = re.compile(
@@ -205,7 +217,12 @@ def is_plain_yes(text: str, customer_name: str) -> bool:
     if any(w in words for w in NOT_YES if w.isascii()):
         return False
     if "?" not in text and says_name(text, customer_name):  # "వసీమా?" asks, it doesn't answer
-        return True
+        # Only treat as plain yes if it is just their name ("వికాస్"), name with polite particle ("వికాస్ అండీ"), or explicit self-identification
+        if (len(words) == 1 or
+            (len(words) == 2 and any(w in ("అండీ", "గారు", "సర్", "మేడం", "जी", "sir", "madam") for w in words)) or
+            "నేనే" in lowered or "మాట్లాడుతున్న" in lowered or "बोल रहा" in lowered):
+            return True
+        return False
     return any(w in YES_WORDS for w in words) or any(
         (stem in lowered) if " " in stem else any(w.startswith(stem) for w in words) for stem in YES_STEMS
     )
@@ -332,6 +349,8 @@ class CollectionAgent(Agent):
         self.part_minimum_asked = False
         # Proposed 30% partial payment after customer payment refusal (offered once)
         self.refusal_offered_partial = False
+        # Whether Ria asked to confirm an ambiguous payment claim (e.g. "కట్టానండి")
+        self.paid_confirmation_asked = False
         # Set by the call: RIA's last line was cut off by the customer talking
         self.last_line_interrupted = False
         # Set by the call: say the goodbye for an outcome and hang up; voicemail
@@ -352,7 +371,13 @@ class CollectionAgent(Agent):
 
     def say_line(self, *lines: dict, interruptible: bool = True, cache: bool = True):
         """Fixed lines from prompts.py in the conversation language, said as one."""
-        return asyncio.create_task(self.lines.say(self.session, self.line_text(*lines), interruptible, cache))
+        try:
+            session = self.session
+        except RuntimeError:
+            session = None
+        if session is None:
+            return None
+        return asyncio.create_task(self.lines.say(session, self.line_text(*lines), interruptible, cache))
 
     def line_text(self, *lines: dict) -> str:
         return " ".join(pick(each, self.language) for each in lines)
@@ -480,14 +505,38 @@ class CollectionAgent(Agent):
         if asked and asked != self.language:
             await self.switch_to(asked)
             return fill(script.PROMPTS.LANGUAGE_SWITCH_NOTE, {"language": NAMES[asked]})
+        if self.paid_confirmation_asked:
+            self.paid_confirmation_asked = False
+            if refuses(text):
+                # Customer clarified that they refuse: "No, I said I won't pay!"
+                minimum = self._part_minimum()
+                min_str = dates.format_inr(minimum)
+                balance_str = dates.format_inr(float(self._call["amount"]))
+                logger.info("Call %s: customer clarified refusal after payment question", self.call_id)
+                return (f"The customer clarified that they refuse to pay. Acknowledge respectfully in one short sentence "
+                        f"and ask ONCE if they can pay at least 30% ({min_str} of {balance_str}) for now. "
+                        f"Don't call finish_call yet unless they refuse this 30% offer too.")
+            elif is_plain_yes(text, "") or AGREES_RE.search(text) or PAID_CLAIM_RE.search(text):
+                logger.info("Call %s: customer confirmed they already paid", self.call_id)
+                await self._save("PAYMENT_MADE", None, 0,
+                                 f"Customer confirmed payment already made; cross-check with the bank. Their words: {text}")
+                return None
+
         if (self.verified or self._said_who_they_are()) and not self.someone_else and PAID_CLAIM_RE.search(text):
-            # "నేను మొన్ననే పేమెంట్ చేశాను": recorded for the team to check against the bank, and the
-            # closing line says so; no questions about amount or reference (the user's rule).
-            # Before the yes check: "అవునండి, నేను కట్టేశాను" is both, and the claim decides
-            logger.info("Call %s: customer says they already paid", self.call_id)
-            await self._save("PAYMENT_MADE", None, 0,
-                             f"Customer says they already paid; cross-check with the bank. Their words: {text}")
-            return None
+            # If explicit (mentions UPI, bank, date, or completed verb), save PAYMENT_MADE at once
+            if EXPLICIT_PAID_RE.search(text):
+                logger.info("Call %s: customer says they already paid (explicit)", self.call_id)
+                await self._save("PAYMENT_MADE", None, 0,
+                                 f"Customer says they already paid; cross-check with the bank. Their words: {text}")
+                return None
+            else:
+                # Ambiguous: single bare verb (e.g. 'కట్టానండి' which sounds like refusal 'కట్టనండి')
+                # Confirm once before recording PAYMENT_MADE
+                logger.info("Call %s: ambiguous payment claim %r; asking confirmation", self.call_id, text)
+                self.paid_confirmation_asked = True
+                confirm_line = getattr(script.PROMPTS, "COLLECTION_CONFIRM_PAID", script.DEFAULT_LINES["COLLECTION_CONFIRM_PAID"])
+                self.say_line(confirm_line)
+                return None
         if not self.verified and not self.someone_else and is_plain_yes(text, self._call["customer_name"]):
             # "అవునండి" to the greeting, or to RIA asking again: until they are verified she
             # asks only who they are, so the balance follows at once from the call sheet

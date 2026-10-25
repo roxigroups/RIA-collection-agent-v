@@ -7,12 +7,48 @@ os.environ.setdefault("DATABASE_URL", "postgresql://mock:mock@localhost:5432/moc
 import ria.script as script
 importlib.reload(script)
 
-from ria.agent import CollectionAgent, PAID_CLAIM_RE, CONTRADICTS_RE
+from ria.agent import CollectionAgent, PAID_CLAIM_RE, CONTRADICTS_RE, EXPLICIT_PAID_RE
 from ria.outcomes import OUTCOME_CODES
+from ria.voice import STT_KEYWORDS
 from ria import dates
 
 
 class TestPaidClaimsAndPTP(unittest.IsolatedAsyncioTestCase):
+    def test_stt_keywords_contain_negations(self):
+        """Fix 2: Ensure STT_KEYWORDS contains negative and refusal keywords to steer recognition."""
+        expected_negatives = ["కట్టను", "కట్టనండి", "కట్టేది లేదు", "కట్టలేను", "కాదు", "లేదు", "नहीं दूँगा", "won't pay"]
+        for word in expected_negatives:
+            self.assertIn(word, STT_KEYWORDS, f"Expected '{word}' to be present in STT_KEYWORDS")
+
+    def test_explicit_paid_regex(self):
+        """Fix 3: Test that EXPLICIT_PAID_RE identifies claims with methods/dates, and separates bare ambiguous verbs."""
+        explicit_samples = [
+            "నేను PhonePe చేసానండి",
+            "Google Pay చేశానండి",
+            "యూపీఐ చేసేశాను",
+            "డబ్బులు పంపించానండి",
+            "నిన్ననే కట్టాను",
+            "మొన్ననే కట్టేశాను",
+            "కట్టేశానండి",
+            "కట్టేసానండి",
+            "Already paid",
+            "payment is done",
+            "पेमेंट कर दिया जी",
+        ]
+        for phrase in explicit_samples:
+            self.assertTrue(bool(EXPLICIT_PAID_RE.search(phrase)), f"Expected '{phrase}' to match EXPLICIT_PAID_RE")
+
+        ambiguous_samples = [
+            "నేను కట్టానండి.",
+            "కట్టాను",
+            "కట్టామండి",
+            "కట్టాం",
+            "చెల్లించాను",
+        ]
+        for phrase in ambiguous_samples:
+            self.assertFalse(bool(EXPLICIT_PAID_RE.search(phrase)), f"Expected '{phrase}' NOT to match EXPLICIT_PAID_RE")
+            self.assertTrue(bool(PAID_CLAIM_RE.search(phrase)), f"Expected '{phrase}' to match general PAID_CLAIM_RE")
+
     def test_paid_claim_regex_matches(self):
         """Test that PAID_CLAIM_RE detects past-tense payment claims across Telugu, Hindi, and English."""
         positives = [
@@ -60,8 +96,8 @@ class TestPaidClaimsAndPTP(unittest.IsolatedAsyncioTestCase):
         for phrase in negatives:
             self.assertFalse(bool(PAID_CLAIM_RE.search(phrase)), f"Expected '{phrase}' NOT to match PAID_CLAIM_RE")
 
-    async def test_already_paid_saves_payment_made_interceptor(self):
-        """When a verified customer says 'నేను కట్టానండి.', it should save PAYMENT_MADE without LLM hallucination."""
+    async def test_explicit_paid_saves_immediately(self):
+        """Fix 3: An explicit payment claim (e.g. PhonePe) saves PAYMENT_MADE immediately without extra question."""
         call = {
             "call_id": "test-201",
             "customer_name": "Vikas",
@@ -76,12 +112,65 @@ class TestPaidClaimsAndPTP(unittest.IsolatedAsyncioTestCase):
         agent.someone_else = False
 
         with patch.object(agent, "_save", new_callable=AsyncMock) as mock_save:
-            res = await agent.take_turn("నేను కట్టానండి.")
-            self.assertIsNone(res, "Expected interceptor to handle turn directly without prompting LLM")
+            res = await agent.take_turn("నేను PhonePe చేసానండి.")
+            self.assertIsNone(res)
             mock_save.assert_called_once()
-            args = mock_save.call_args[0]
-            self.assertEqual(args[0], "PAYMENT_MADE")
-            self.assertIn("Customer says they already paid", args[3])
+            self.assertEqual(mock_save.call_args[0][0], "PAYMENT_MADE")
+
+    async def test_ambiguous_paid_confirms_first_then_saves(self):
+        """Fix 3: Ambiguous claim ('నేను కట్టానండి.') triggers confirmation question, then saves on 'అవునండి'."""
+        call = {
+            "call_id": "test-202",
+            "customer_name": "Vikas",
+            "amount": "2026",
+            "invoice_no": "123456",
+            "company": "roxygroups",
+        }
+        mock_lines = MagicMock()
+        mock_stt = MagicMock()
+        agent = CollectionAgent(call, "te", mock_lines, mock_stt)
+        agent.verified = True
+        agent.someone_else = False
+
+        with patch.object(agent, "_save", new_callable=AsyncMock) as mock_save:
+            # Turn 1: Ambiguous claim -> Ria should ask confirmation line, NOT save yet
+            res1 = await agent.take_turn("నేను కట్టానండి.")
+            self.assertIsNone(res1)
+            mock_save.assert_not_called()
+            self.assertTrue(agent.paid_confirmation_asked)
+
+            # Turn 2: Customer confirms ("అవునండి") -> Saves PAYMENT_MADE
+            res2 = await agent.take_turn("అవునండి.")
+            self.assertIsNone(res2)
+            mock_save.assert_called_once()
+            self.assertEqual(mock_save.call_args[0][0], "PAYMENT_MADE")
+
+    async def test_ambiguous_paid_refusal_clarification_prompts_partial_30(self):
+        """Fix 3: Ambiguous claim followed by refusal clarification triggers 30% partial payment offer."""
+        call = {
+            "call_id": "test-203",
+            "customer_name": "Vikas",
+            "amount": "10000",
+            "invoice_no": "123456",
+            "company": "roxygroups",
+        }
+        mock_lines = MagicMock()
+        mock_stt = MagicMock()
+        agent = CollectionAgent(call, "te", mock_lines, mock_stt)
+        agent.verified = True
+        agent.someone_else = False
+
+        with patch.object(agent, "_save", new_callable=AsyncMock) as mock_save:
+            # Turn 1: Ambiguous claim
+            await agent.take_turn("నేను కట్టానండి.")
+            self.assertTrue(agent.paid_confirmation_asked)
+
+            # Turn 2: Customer clarifies refusal ("లేదండి, కట్టను అంటున్నాను")
+            res = await agent.take_turn("లేదండి, కట్టను అంటున్నాను.")
+            mock_save.assert_not_called()
+            self.assertIsNotNone(res)
+            self.assertIn("30%", res)
+            self.assertIn("refuse to pay", res)
 
     def test_no_double_rupee_symbol(self):
         """Ensure formatting amount with format_inr in script templates does not produce ₹₹."""
@@ -111,3 +200,17 @@ class TestPaidClaimsAndPTP(unittest.IsolatedAsyncioTestCase):
         dashboard_outcome, ticket, label = outcome_tuple
         self.assertEqual(dashboard_outcome, "PROMISE-TO-PAY")
         self.assertEqual(label, "Part payment")
+
+    def test_is_plain_yes_avoids_false_verification(self):
+        """Ensure sentences containing the name but meaning someone else (e.g. 'నేను వికాస్ మీరా.') do not verify."""
+        from ria.agent import is_plain_yes
+        self.assertTrue(is_plain_yes("వికాస్", "vikas"))
+        self.assertTrue(is_plain_yes("వికాస్ అండీ", "vikas"))
+        self.assertTrue(is_plain_yes("నేనే వికాస్", "vikas"))
+        self.assertTrue(is_plain_yes("వికాస్ మాట్లాడుతున్నాను", "vikas"))
+
+        # Phrases with name that are NOT confirmation:
+        self.assertFalse(is_plain_yes("నేను వికాస్ మీరా.", "vikas"))
+        self.assertFalse(is_plain_yes("వికాస్ బయటికి వెళ్ళాడు", "vikas"))
+        self.assertFalse(is_plain_yes("వికాస్ కాదు", "vikas"))
+        self.assertFalse(is_plain_yes("వికాస్ లేడు", "vikas"))

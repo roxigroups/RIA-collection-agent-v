@@ -199,6 +199,8 @@ async def entrypoint(ctx: JobContext) -> None:
         who_line = prompts.COLLECTION_WHO_ASK if has_name else getattr(prompts, "COLLECTION_PAYMENTS_ASK", prompts.COLLECTION_WHO_ASK)
         lines.prepare(pick(who_line, language))
         lines.prepare(pick(prompts.CALLBACK_TIME_ASK, language))  # no call details: from the disk cache
+        if hasattr(prompts, "COLLECTION_CONFIRM_PAID"):
+            lines.prepare(pick(prompts.COLLECTION_CONFIRM_PAID, language))
 
 
     if not await wait_until_answered(ctx, participant):
