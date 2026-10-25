@@ -65,13 +65,12 @@ NO_PROBLEM_RE = re.compile(
 # "I already paid" in the customer's words: RIA says the team will cross-check it and ends
 # the call (the user's rule; asking for the amount and reference lost the claim when the
 # customer hung up). Past tense only: "కట్టేస్తా" (I'll pay) is a promise, not this
-_PAID_WITH = r"(?:పే|పేమెంట్|payment|అమౌంట్|amount|డబ్బులు|UPI|యూపీఐ|ట్రాన్స్ఫర్|transfer|ఫోన్ ?పే|phone ?pe|గూగుల్ ?పే|g ?pay)"
+_PAID_WITH = r"(?:పే|పేమెంట్|payment|అమౌంట్|amount|డబ్బులు|UPI|యూపీఐ|ట్రాన్స్ఫర్|transfer|ఫోన్ ?పే|phone ?pe|గూగుల్ ?పే|google ?pay|g ?pay)"
 PAID_CLAIM_RE = re.compile(
     r"already paid|paid already|\b(?:i|we) (?:have |had )?(?:already )?paid\b|payment (?:is |was )?(?:made|done|completed)"
     r"|\b(?:i|we) (?:have )?(?:made|done|sent|transferred) (?:the )?payment"
-    r"|చెల్లించాను|చెల్లించేశా|కట్టేశా|కట్టాను|కట్టేసాను|పేమెంట్ అయింది|పేమెంట్ అయిపోయింది"
-    r"|" + _PAID_WITH + r"\s*(?:\S+\s*){0,2}?(?:చేశాను|చేసాను|చేసేశాను|చేశా|చేసా|చేసేశా|పంపాను|పంపించాను|పంపేశాను"
-    r"|పంపేశా|వేశాను|వేసాను|అయింది|అయిపోయింది)"
+    r"|చెల్లించా(?!లి)|చెల్లించే[శస]ా|కట్టా[ననుంమ]|కట్టే[శస]ా|పేమెంట్\s*అయి"
+    r"|" + _PAID_WITH + r"\s*(?:\S+\s*){0,2}?(?:చే[శస]ే[శస]ా|చే[శస]ా[ననుంమ]|చే[శస]ా|పంప|వే[శస]ా|అయి)"
     r"|(?:पेमेंट|भुगतान|पैसे|payment)\s*(?:\S+\s*){0,2}?(?:कर दिया|कर दी|कर चुका|कर चुकी|हो गया|हो गई|भेज दिया"
     r"|भेज दिए|दे दिया|दे दिए|डाल दिया)",
     re.I,
@@ -80,8 +79,11 @@ PAID_CLAIM_RE = re.compile(
 # "I already paid", "call me" or "I'm busy" contradict it, so nothing is saved
 CONTRADICTS_RE = re.compile(
     r"already paid|paid already|payment (?:is )?(?:made|done)|\b(?:i|we) (?:have )?paid\b|\b(?:call|callback|busy)\b"
-    r"|చెల్లించాను|చెల్లించేశా|కట్టేశా|కట్టాను|కట్టేసాను|పేమెంట్ అయింది|పేమెంట్ చేశా|ఆల్రెడీ|కాల్ చేయ|బిజీ"
-    r"|भुगतान हो गया|पैसे दे दिए|पेमेंट हो गया|पेमेंट कर दिया|पहले ही|कॉल करो|कॉल करना|व्यस्त|बिज़ी|बिजी",
+    r"|చెల్లించా(?!లి)|చెల్లించే[శస]ా|కట్టా[ననుంమ]|కట్టే[శస]ా|పేమెంట్\s*అయి|ఆల్రెడీ|కాల్ చేయ|బిజీ"
+    r"|" + _PAID_WITH + r"\s*(?:\S+\s*){0,2}?(?:చే[శస]ే[శస]ా|చే[శస]ా[ననుంమ]|చే[శస]ా|పంప|వే[శస]ా|అయి)"
+    r"|(?:पेमेंट|भुगतान|पैसे|payment)\s*(?:\S+\s*){0,2}?(?:कर दिया|कर दी|कर चुका|कर चुकी|हो गया|हो गई|भेज दिया"
+    r"|भेज दिए|दे दिया|दे दिए|डाल दिया)"
+    r"|पहले ही|कॉल करो|कॉल करना|व्यस्त|बिज़ी|बिजी",
     re.I,
 )
 # ...and "the invoice is wrong", "later" or a question: not a quick yes, so the model

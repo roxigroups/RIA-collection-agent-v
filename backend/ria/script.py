@@ -52,14 +52,14 @@ DEFAULT_LINES = {
         "en": "Are you {customer}?",
     },
     "COLLECTION_AMOUNT_LINES": {
-        "te": "{company} లో మీ invoice {invoice_no} కి సంబంధించి ₹{amount} balance ఉంది అండీ. {overdue}.",
-        "hi": "{company} में आपके invoice {invoice_no} के ₹{amount} बाकी हैं जी। {overdue}।",
-        "en": "This is regarding your invoice {invoice_no} with {company} for ₹{amount}, which is {overdue}.",
+        "te": "{company} లో మీ invoice {invoice_no} కి సంబంధించి {amount} balance ఉంది అండీ. {overdue}.",
+        "hi": "{company} में आपके invoice {invoice_no} के {amount} बाकी हैं जी। {overdue}।",
+        "en": "This is regarding your invoice {invoice_no} with {company} for {amount}, which is {overdue}.",
     },
     "COLLECTION_AMOUNT_NO_INV": {
-        "te": "{company} లో మీ account లో ₹{amount} balance due ఉంది అండీ. {overdue}.",
-        "hi": "{company} में आपके अकाउंट में ₹{amount} बाकी हैं जी। {overdue}।",
-        "en": "This is regarding your pending balance of ₹{amount} with {company}, which is {overdue}.",
+        "te": "{company} లో మీ account లో {amount} balance due ఉంది అండీ. {overdue}.",
+        "hi": "{company} में आपके अकाउंट में {amount} बाकी हैं जी। {overdue}।",
+        "en": "This is regarding your pending balance of {amount} with {company}, which is {overdue}.",
     },
     "COLLECTION_INV_NO_AMOUNT": {
         "te": "నేను {company} నుంచి మీ invoice {invoice_no} payment follow-up గురించి కాల్ చేస్తున్నాను అండీ.",
@@ -147,6 +147,12 @@ DEFAULT_LINES = {
 }
 # Goodbyes for outcomes prompts.py has none for (it uses the general one otherwise)
 DEFAULT_CLOSINGS = {
+    # Customer says they already paid: Ria acknowledges politely and accounts team cross-checks
+    "PAYMENT_MADE": {
+        "te": "ధన్యవాదాలు అండీ. మీరు చెప్పిన payment వివరాలు మా accounts team తో cross-check చేస్తాము. Have a good day.",
+        "hi": "धन्यवाद जी। आपके पेमेंट की डिटेल्स हम हमारी अकाउंट्स टीम के साथ क्रॉस-चेक कर लेंगे। आपका दिन शुभ हो।",
+        "en": "Thank you. We will cross-check your payment details with our accounts team. Have a good day.",
+    },
     # Won't commit to anything now (the demo script): the team follows up in person
     "PAYMENT_REFUSED": {
         "te": "పర్లేదండీ, అర్థం చేసుకున్నాను. మీ response note చేసుకున్నాను, మా team నుంచి ఎవరైనా మీతో personal గా మాట్లాడతారు. Thank you.",
