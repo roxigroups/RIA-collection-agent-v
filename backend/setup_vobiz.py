@@ -34,7 +34,7 @@ async def setup_inbound(lk: api.LiveKitAPI, number: str) -> None:
     inbound = api.SIPInboundTrunkInfo(
         name=INBOUND_NAME,
         numbers=[number],
-        krisp_enabled=True,
+        krisp_enabled=os.getenv("NOISE_CANCELLATION", "off").lower() not in ("off", "0", "false"),
     )
     existing = (await lk.sip.list_inbound_trunk(api.ListSIPInboundTrunkRequest())).items
     found = next((t for t in existing if t.name == INBOUND_NAME), None)
