@@ -225,7 +225,7 @@ class Dialer:
             participant_name=call["customer_name"],
             # The agent loads the invoice from the database by call_id
             participant_metadata=json.dumps({"call_id": call_id}),
-            krisp_enabled=os.getenv("NOISE_CANCELLATION", "off").lower() not in ("off", "0", "false"),
+            krisp_enabled=os.getenv("NOISE_CANCELLATION", "off").strip("\"' ").lower() not in ("off", "0", "false", "none", ""),
             wait_until_answered=True,
         )
         request.ringing_timeout.seconds = 30

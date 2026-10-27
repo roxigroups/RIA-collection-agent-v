@@ -53,24 +53,24 @@ DEFAULT_LINES = {
         "en": "Are you {customer}?",
     },
     "COLLECTION_AMOUNT_LINES": {
-        "te": "{company} లో మీ invoice {invoice_no} కి సంబంధించి {amount} balance ఉంది అండీ. {overdue}.",
-        "hi": "{company} में आपके invoice {invoice_no} के {amount} बाकी हैं जी। {overdue}।",
-        "en": "This is regarding your invoice {invoice_no} with {company} for {amount}, which is {overdue}.",
+        "te": "{company} లో మీ invoice {invoice_no} కి సంబంధించి {amount} balance ఉంది అండీ. {overdue}. మీరు ఈ payment ఎప్పటి వరకు చేయగలరు అండీ?",
+        "hi": "{company} में आपके invoice {invoice_no} के {amount} बाकी हैं जी। {overdue}। आप इसका payment कब तक कर पाएंगे जी?",
+        "en": "This is regarding your invoice {invoice_no} with {company} for {amount}, which is {overdue}. By when can you make this payment?",
     },
     "COLLECTION_AMOUNT_NO_INV": {
-        "te": "{company} లో మీ account లో {amount} balance due ఉంది అండీ. {overdue}.",
-        "hi": "{company} में आपके अकाउंट में {amount} बाकी हैं जी। {overdue}।",
-        "en": "This is regarding your pending balance of {amount} with {company}, which is {overdue}.",
+        "te": "{company} లో మీ account లో {amount} balance due ఉంది అండీ. {overdue}. మీరు ఈ payment ఎప్పటి వరకు చేయగలరు అండీ?",
+        "hi": "{company} में आपके अकाउंट में {amount} बाकी हैं जी। {overdue}। आप इसका payment कब तक कर पाएंगे जी?",
+        "en": "This is regarding your pending balance of {amount} with {company}, which is {overdue}. By when can you make this payment?",
     },
     "COLLECTION_INV_NO_AMOUNT": {
-        "te": "నేను {company} నుంచి మీ invoice {invoice_no} payment follow-up గురించి కాల్ చేస్తున్నాను అండీ.",
-        "hi": "मैं {company} से आपके invoice {invoice_no} के पेमेंट फ़ॉलो-अप के सिलसिले में बात कर रही हूँ जी।",
-        "en": "I am calling regarding payment follow-up for your invoice {invoice_no} with {company}.",
+        "te": "నేను {company} నుంచి మీ invoice {invoice_no} payment follow-up గురించి కాల్ చేస్తున్నాను అండీ. మీరు ఈ payment ఎప్పటి వరకు చేయగలరు అండీ?",
+        "hi": "मैं {company} से आपके invoice {invoice_no} के पेमेंट फ़ॉलो-अप के सिलसिले में बात कर रही हूँ जी। आप इसका payment कब तक कर पाएंगे जी?",
+        "en": "I am calling regarding payment follow-up for your invoice {invoice_no} with {company}. By when can you make this payment?",
     },
     "COLLECTION_GENERIC_FOLLOWUP": {
-        "te": "నేను {company} నుంచి మీ pending payment follow-up గురించి కాల్ చేస్తున్నాను అండీ.",
-        "hi": "मैं {company} से आपके पेंडिंग पेमेंट फ़ॉलो-अप के सिलसिले में बात कर रही हूँ जी।",
-        "en": "I am calling regarding pending payment follow-up with {company}.",
+        "te": "నేను {company} నుంచి మీ pending payment follow-up గురించి కాల్ చేస్తున్నాను అండీ. మీరు ఈ payment ఎప్పటి వరకు చేయగలరు అండీ?",
+        "hi": "मैं {company} से आपके पेंडिंग पेमेंट फ़ॉलो-अप के सिलसिले में बात कर रही हूँ जी। आप इसका payment कब तक कर पाएंगे जी?",
+        "en": "I am calling regarding pending payment follow-up with {company}. By when can you make this payment?",
     },
     "DUE_PHRASES": {
         "te": {

@@ -75,10 +75,10 @@ def load_call(participant) -> dict | None:
 def noise_filter():
     """NOISE_CANCELLATION: "off" disables filter (recommended for self-hosted LiveKit to
     prevent 404 license stalls); "bvc" or "nc" requires LiveKit Cloud."""
-    mode = os.getenv("NOISE_CANCELLATION", "off").lower()
-    if mode == "off":
-        return None
-    return noise_cancellation.NC() if mode == "nc" else noise_cancellation.BVCTelephony()
+    mode = os.getenv("NOISE_CANCELLATION", "off").strip("\"' ").lower()
+    if mode in ("bvc", "nc"):
+        return noise_cancellation.NC() if mode == "nc" else noise_cancellation.BVCTelephony()
+    return None
 
 
 def make_session(ctx: JobContext, stt, tts) -> AgentSession:
