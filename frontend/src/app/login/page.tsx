@@ -4,6 +4,7 @@ import React, { useEffect, useState, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/context/AppContext';
 import { api, ApiError } from '@/lib/api';
+import PrivacyPolicyModal from '@/components/common/PrivacyPolicyModal';
 
 const REMEMBER_KEY = 'ria.rememberedUserId';
 
@@ -135,6 +136,8 @@ export default function LoginPage() {
   const [showSignupPass, setShowSignupPass] = useState(false);
   const [showConfirmPass, setShowConfirmPass] = useState(false);
   const [signupOtp, setSignupOtp] = useState('');
+  const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
 
   // Forgot Password state
   const [forgotEmail, setForgotEmail] = useState('');
@@ -191,6 +194,10 @@ export default function LoginPage() {
     }
     if (signupPass.length < 8 || !/[a-zA-Z]/.test(signupPass) || !/[0-9]/.test(signupPass)) {
       setError('Password must be at least 8 characters long and contain both letters and numbers.');
+      return;
+    }
+    if (!acceptedPrivacy) {
+      setError('Please accept the Privacy Policy to create your account.');
       return;
     }
 
@@ -597,6 +604,29 @@ export default function LoginPage() {
                   </div>
                 </div>
 
+                <div className="login-consent">
+                  <input
+                    id="suPrivacy"
+                    type="checkbox"
+                    checked={acceptedPrivacy}
+                    onChange={(e) => {
+                      setAcceptedPrivacy(e.target.checked);
+                      setError('');
+                    }}
+                    required
+                  />
+                  <label htmlFor="suPrivacy" style={{ margin: 0, fontWeight: 400, color: 'inherit', display: 'inline', cursor: 'pointer' }}>
+                    I accept the{' '}
+                    <button
+                      type="button"
+                      className="privacy-link-btn"
+                      onClick={() => setShowPrivacyModal(true)}
+                    >
+                      Privacy Policy
+                    </button>
+                  </label>
+                </div>
+
                 <button type="submit" className="login-submit" disabled={busy}>
                   {busy ? 'Sending code…' : 'Create account'}
                   {!busy && <ArrowIcon />}
@@ -903,6 +933,16 @@ export default function LoginPage() {
           )}
         </div>
       </div>
+
+      <PrivacyPolicyModal
+        isOpen={showPrivacyModal}
+        onClose={() => setShowPrivacyModal(false)}
+        onAccept={() => {
+          setAcceptedPrivacy(true);
+          setShowPrivacyModal(false);
+          setError('');
+        }}
+      />
     </div>
   );
 }
