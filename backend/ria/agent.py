@@ -55,7 +55,7 @@ AGREES_RE = re.compile(
     re.I,
 )
 REFUSAL_RE = re.compile(
-    r"కుదర|లేదు|లేదండ|కాదు|అవ్వదు|చేయలేను|కట్టలేను|కట్టను|చెల్లించను|ఇవ్వను|ఇయ్యను"
+    r"కుదర|లేదు|లేదండ|కాదు|అవ్వదు|చేయలే[నున]|కట్టలే[నున]|కట్ట[నున]|చెల్లించ[నున]|ఇవ్వ[నున]|ఇయ్య[నున]|చేయన"
     r"|नहीं|नही|मुश्किल|नहीं दूँ|नहीं दूंग|नहीं भरूँ|नहीं भरूंग|नहीं देंगे"
     r"|can'?t|cannot|not possible|won'?t pay|will not pay|\bno\b", re.I
 )
@@ -528,20 +528,13 @@ class CollectionAgent(Agent):
                 return None
 
         if (self.verified or self._said_who_they_are()) and not self.someone_else and PAID_CLAIM_RE.search(text):
-            # If explicit (mentions UPI, bank, date, or completed verb), save PAYMENT_MADE at once
-            if EXPLICIT_PAID_RE.search(text):
-                logger.info("Call %s: customer says they already paid (explicit)", self.call_id)
-                await self._save("PAYMENT_MADE", None, 0,
-                                 f"Customer says they already paid; cross-check with the bank. Their words: {text}")
-                return None
-            else:
-                # Ambiguous: single bare verb (e.g. 'కట్టానండి' which sounds like refusal 'కట్టనండి')
-                # Confirm once before recording PAYMENT_MADE
-                logger.info("Call %s: ambiguous payment claim %r; asking confirmation", self.call_id, text)
-                self.paid_confirmation_asked = True
-                confirm_line = getattr(script.PROMPTS, "COLLECTION_CONFIRM_PAID", script.DEFAULT_LINES["COLLECTION_CONFIRM_PAID"])
-                self.say_line(confirm_line)
-                return None
+            # Always verify payment claim first to prevent false recordings from acoustic/STT errors (e.g. "కట్టాను" vs "కట్టను")
+            # Never assume payment or finish the call on first mention without customer confirmation
+            logger.info("Call %s: payment claimed %r; asking confirmation first", self.call_id, text)
+            self.paid_confirmation_asked = True
+            confirm_line = getattr(script.PROMPTS, "COLLECTION_CONFIRM_PAID", script.DEFAULT_LINES["COLLECTION_CONFIRM_PAID"])
+            self.say_line(confirm_line)
+            return None
         if not self.verified and not self.someone_else and is_plain_yes(text, self._call["customer_name"]):
             # "అవునండి" to the greeting, or to RIA asking again: until they are verified she
             # asks only who they are, so the balance follows at once from the call sheet

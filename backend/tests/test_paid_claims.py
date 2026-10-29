@@ -7,7 +7,7 @@ os.environ.setdefault("DATABASE_URL", "postgresql://mock:mock@localhost:5432/moc
 import ria.script as script
 importlib.reload(script)
 
-from ria.agent import CollectionAgent, PAID_CLAIM_RE, CONTRADICTS_RE, EXPLICIT_PAID_RE
+from ria.agent import CollectionAgent, PAID_CLAIM_RE, CONTRADICTS_RE, EXPLICIT_PAID_RE, refuses
 from ria.outcomes import OUTCOME_CODES
 from ria.voice import STT_KEYWORDS
 from ria import dates
@@ -96,8 +96,8 @@ class TestPaidClaimsAndPTP(unittest.IsolatedAsyncioTestCase):
         for phrase in negatives:
             self.assertFalse(bool(PAID_CLAIM_RE.search(phrase)), f"Expected '{phrase}' NOT to match PAID_CLAIM_RE")
 
-    async def test_explicit_paid_saves_immediately(self):
-        """Fix 3: An explicit payment claim (e.g. PhonePe) saves PAYMENT_MADE immediately without extra question."""
+    async def test_explicit_paid_asks_confirmation_first(self):
+        """Fix 3: All payment claims (even explicit e.g. PhonePe) verify first to prevent acoustic errors."""
         call = {
             "call_id": "test-201",
             "customer_name": "Vikas",
@@ -112,10 +112,30 @@ class TestPaidClaimsAndPTP(unittest.IsolatedAsyncioTestCase):
         agent.someone_else = False
 
         with patch.object(agent, "_save", new_callable=AsyncMock) as mock_save:
+            # Turn 1: Explicit claim triggers confirmation question, NOT save yet
             res = await agent.take_turn("నేను PhonePe చేసానండి.")
             self.assertIsNone(res)
+            mock_save.assert_not_called()
+            self.assertTrue(agent.paid_confirmation_asked)
+
+            # Turn 2: Customer confirms ("అవునండి") -> Saves PAYMENT_MADE
+            res2 = await agent.take_turn("అవునండి.")
+            self.assertIsNone(res2)
             mock_save.assert_called_once()
             self.assertEqual(mock_save.call_args[0][0], "PAYMENT_MADE")
+
+    def test_refusal_includes_polite_sandhi_forms(self):
+        """Ensure polite refusal variants in Telugu with honorific 'andi' are detected."""
+        polite_refusals = [
+            "కట్టనండి",
+            "కట్టన",
+            "కట్టలేనండి",
+            "చెల్లించనండి",
+            "ఇవ్వనండి",
+            "చేయనండి",
+        ]
+        for phrase in polite_refusals:
+            self.assertTrue(refuses(phrase), f"Expected '{phrase}' to match refuses()")
 
     async def test_ambiguous_paid_confirms_first_then_saves(self):
         """Fix 3: Ambiguous claim ('నేను కట్టానండి.') triggers confirmation question, then saves on 'అవునండి'."""
