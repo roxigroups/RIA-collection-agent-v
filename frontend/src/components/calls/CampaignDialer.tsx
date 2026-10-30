@@ -41,6 +41,8 @@ export default function CampaignDialer({ batch }: { batch: CallBatch }) {
   const [failed, setFailed] = useState(false);
   const [tick, setTick] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<'ALL' | 'PTP' | 'WAITING' | 'UNANSWERED' | 'DISPUTES' | 'PAID'>('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
   const lastKey = useRef('');
 
   useEffect(() => {
@@ -72,6 +74,50 @@ export default function CampaignDialer({ batch }: { batch: CallBatch }) {
   }, [batch.id, refresh]);
 
   const all = rows || [];
+  const countAll = all.length;
+  const countPtp = all.filter((r) => Boolean(r.promised) || (r.outcome && r.outcome.toLowerCase().includes('ptp'))).length;
+  const countWaiting = all.filter((r) => r.state === 'queued').length;
+  const countUnanswered = all.filter((r) => {
+    const o = (r.outcome || '').toLowerCase();
+    return o.includes('not lifted') || o.includes('busy') || o.includes('failed') || o.includes('unanswered') || o.includes('no-answer');
+  }).length;
+  const countDisputes = all.filter((r) => {
+    const o = (r.outcome || '').toLowerCase();
+    return o.includes('dispute') || o.includes('refused') || o.includes('complaint') || o.includes('wrong-person') || o.includes('wrong number') || o.includes('opt-out');
+  }).length;
+  const countPaid = all.filter((r) => (r.outcome || '').toLowerCase().includes('already paid')).length;
+
+  const filteredRows = all.filter((r) => {
+    if (activeFilter === 'PTP') {
+      const isPtp = Boolean(r.promised) || (r.outcome && r.outcome.toLowerCase().includes('ptp'));
+      if (!isPtp) return false;
+    } else if (activeFilter === 'WAITING') {
+      if (r.state !== 'queued') return false;
+    } else if (activeFilter === 'UNANSWERED') {
+      const o = (r.outcome || '').toLowerCase();
+      const isUnans = o.includes('not lifted') || o.includes('busy') || o.includes('failed') || o.includes('unanswered') || o.includes('no-answer');
+      if (!isUnans) return false;
+    } else if (activeFilter === 'DISPUTES') {
+      const o = (r.outcome || '').toLowerCase();
+      const isDisp = o.includes('dispute') || o.includes('refused') || o.includes('complaint') || o.includes('wrong-person') || o.includes('wrong number') || o.includes('opt-out');
+      if (!isDisp) return false;
+    } else if (activeFilter === 'PAID') {
+      const o = (r.outcome || '').toLowerCase();
+      if (!o.includes('already paid')) return false;
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      const nameMatch = r.name && r.name.toLowerCase().includes(q);
+      const bizMatch = r.business && r.business.toLowerCase().includes(q);
+      const phMatch = r.ph && r.ph.includes(q);
+      const invMatch = r.invoice && r.invoice.toLowerCase().includes(q);
+      if (!nameMatch && !bizMatch && !phMatch && !invMatch) {
+        return false;
+      }
+    }
+    return true;
+  });
+
   const current = all.find((r) => r.state === 'live') || all.find((r) => r.state === 'dialing');
   const waiting = all.filter((r) => r.state === 'queued');
   const upNext = [...waiting].sort((a, b) => Number(b.dialNow) - Number(a.dialNow) || a.row - b.row);
@@ -259,7 +305,276 @@ export default function CampaignDialer({ batch }: { batch: CallBatch }) {
           </div>
 
           {/* The whole imported sheet */}
-          <div style={{ flex: '1 1 520px', minWidth: 0 }}>
+          <div style={{ flex: '1 1 520px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {/* Quick Action Pills & Search Input */}
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px',
+                background: 'var(--surface)',
+                border: '1px solid var(--line)',
+                borderRadius: '8px',
+                padding: '12px 14px',
+              }}
+            >
+              {/* Top Quick Action Pills */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${activeFilter === 'ALL' ? 'btn-primary' : 'btn-ghost'}`}
+                  style={{
+                    borderRadius: '20px',
+                    padding: '4px 10px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                  onClick={() => setActiveFilter('ALL')}
+                >
+                  <span>All Customers</span>
+                  <span
+                    style={{
+                      background: activeFilter === 'ALL' ? 'rgba(255,255,255,0.25)' : 'var(--track)',
+                      color: activeFilter === 'ALL' ? '#fff' : 'var(--t2)',
+                      padding: '1px 6px',
+                      borderRadius: '99px',
+                      fontSize: '10.5px',
+                    }}
+                  >
+                    {countAll}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  className={`btn btn-sm ${activeFilter === 'PTP' ? 'btn-primary' : 'btn-ghost'}`}
+                  style={{
+                    borderRadius: '20px',
+                    padding: '4px 10px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    borderColor: activeFilter === 'PTP' ? undefined : 'var(--green)',
+                    color: activeFilter === 'PTP' ? undefined : 'var(--green-ink)',
+                  }}
+                  onClick={() => setActiveFilter(activeFilter === 'PTP' ? 'ALL' : 'PTP')}
+                >
+                  <span>🔥 PTP Given</span>
+                  <span
+                    style={{
+                      background: activeFilter === 'PTP' ? 'rgba(255,255,255,0.25)' : 'var(--green-soft)',
+                      color: activeFilter === 'PTP' ? '#fff' : 'var(--green-ink)',
+                      padding: '1px 6px',
+                      borderRadius: '99px',
+                      fontSize: '10.5px',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {countPtp}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  className={`btn btn-sm ${activeFilter === 'WAITING' ? 'btn-primary' : 'btn-ghost'}`}
+                  style={{
+                    borderRadius: '20px',
+                    padding: '4px 10px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                  onClick={() => setActiveFilter(activeFilter === 'WAITING' ? 'ALL' : 'WAITING')}
+                >
+                  <span>⏳ Waiting</span>
+                  <span
+                    style={{
+                      background: activeFilter === 'WAITING' ? 'rgba(255,255,255,0.25)' : 'var(--track)',
+                      color: activeFilter === 'WAITING' ? '#fff' : 'var(--t2)',
+                      padding: '1px 6px',
+                      borderRadius: '99px',
+                      fontSize: '10.5px',
+                    }}
+                  >
+                    {countWaiting}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  className={`btn btn-sm ${activeFilter === 'UNANSWERED' ? 'btn-primary' : 'btn-ghost'}`}
+                  style={{
+                    borderRadius: '20px',
+                    padding: '4px 10px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    borderColor: activeFilter === 'UNANSWERED' ? undefined : 'var(--gold)',
+                    color: activeFilter === 'UNANSWERED' ? undefined : 'var(--gold-ink)',
+                  }}
+                  onClick={() => setActiveFilter(activeFilter === 'UNANSWERED' ? 'ALL' : 'UNANSWERED')}
+                >
+                  <span>📞 Retries / No Lift</span>
+                  <span
+                    style={{
+                      background: activeFilter === 'UNANSWERED' ? 'rgba(255,255,255,0.25)' : 'var(--gold-soft)',
+                      color: activeFilter === 'UNANSWERED' ? '#fff' : 'var(--gold-ink)',
+                      padding: '1px 6px',
+                      borderRadius: '99px',
+                      fontSize: '10.5px',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {countUnanswered}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  className={`btn btn-sm ${activeFilter === 'DISPUTES' ? 'btn-primary' : 'btn-ghost'}`}
+                  style={{
+                    borderRadius: '20px',
+                    padding: '4px 10px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    borderColor: activeFilter === 'DISPUTES' ? undefined : 'var(--red)',
+                    color: activeFilter === 'DISPUTES' ? undefined : 'var(--red)',
+                  }}
+                  onClick={() => setActiveFilter(activeFilter === 'DISPUTES' ? 'ALL' : 'DISPUTES')}
+                >
+                  <span>⚠️ Disputes & Refusals</span>
+                  <span
+                    style={{
+                      background: activeFilter === 'DISPUTES' ? 'rgba(255,255,255,0.25)' : 'var(--red-soft)',
+                      color: activeFilter === 'DISPUTES' ? '#fff' : 'var(--red)',
+                      padding: '1px 6px',
+                      borderRadius: '99px',
+                      fontSize: '10.5px',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {countDisputes}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  className={`btn btn-sm ${activeFilter === 'PAID' ? 'btn-primary' : 'btn-ghost'}`}
+                  style={{
+                    borderRadius: '20px',
+                    padding: '4px 10px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    borderColor: activeFilter === 'PAID' ? undefined : 'var(--blue)',
+                    color: activeFilter === 'PAID' ? undefined : 'var(--blue)',
+                  }}
+                  onClick={() => setActiveFilter(activeFilter === 'PAID' ? 'ALL' : 'PAID')}
+                >
+                  <span>💳 Already Paid</span>
+                  <span
+                    style={{
+                      background: activeFilter === 'PAID' ? 'rgba(255,255,255,0.25)' : 'var(--blue-soft)',
+                      color: activeFilter === 'PAID' ? '#fff' : 'var(--blue)',
+                      padding: '1px 6px',
+                      borderRadius: '99px',
+                      fontSize: '10.5px',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {countPaid}
+                  </span>
+                </button>
+              </div>
+
+              {/* Search Bar + Result Count */}
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ position: 'relative', flex: '1 1 240px', minWidth: '200px' }}>
+                  <span
+                    style={{
+                      position: 'absolute',
+                      left: '10px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      fontSize: '13px',
+                      color: 'var(--t2)',
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    🔍
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="Search by customer name, store, phone, or invoice #..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '6px 10px 6px 32px',
+                      fontSize: '12.5px',
+                      borderRadius: '6px',
+                      border: '1px solid var(--line)',
+                      background: 'var(--surface-2)',
+                    }}
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      style={{
+                        position: 'absolute',
+                        right: '8px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--t2)',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        padding: '2px',
+                      }}
+                      title="Clear search"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto', fontSize: '12px', color: 'var(--t2)' }}>
+                  <span>
+                    Showing <b>{filteredRows.length}</b> of <b>{all.length}</b> rows
+                  </span>
+                  {(activeFilter !== 'ALL' || searchQuery) && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      style={{ padding: '2px 8px', fontSize: '11px', color: 'var(--red)' }}
+                      onClick={() => {
+                        setActiveFilter('ALL');
+                        setSearchQuery('');
+                      }}
+                    >
+                      Reset filters
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
             <div className="tbl-wrap" style={{ maxHeight: '520px', border: '1px solid var(--line)', borderRadius: '8px' }}>
               <table data-testid="sheet-table">
                 <thead>
@@ -278,7 +593,28 @@ export default function CampaignDialer({ batch }: { batch: CallBatch }) {
                       <td colSpan={6} className="meta">Loading the sheet…</td>
                     </tr>
                   )}
-                  {all.map((r) => {
+                  {rows !== null && filteredRows.length === 0 && (
+                    <tr>
+                      <td colSpan={6} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--t2)' }}>
+                        <div style={{ fontSize: '20px', marginBottom: '6px' }}>🔍</div>
+                        <div style={{ fontWeight: 600, color: 'var(--t1)', marginBottom: '4px' }}>No matching customer calls</div>
+                        <div style={{ fontSize: '12px' }}>Try adjusting your search terms or filter selection.</div>
+                        <div style={{ marginTop: '10px' }}>
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => {
+                              setActiveFilter('ALL');
+                              setSearchQuery('');
+                            }}
+                          >
+                            Reset filters
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  {filteredRows.map((r) => {
                     const onLine = r.state === 'live' || r.state === 'dialing';
                     return (
                       <tr key={r.row} style={onLine ? { background: '#ECFDF5' } : undefined} data-testid="sheet-row">
