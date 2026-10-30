@@ -249,6 +249,30 @@ def hi_number_word(n: int) -> str:
     return str(n)
 
 
+
+KN_COUNT_WORDS = {
+    1: "ಒಂದು", 2: "ಎರಡು", 3: "ಮೂರು", 4: "ನಾಲ್ಕು", 5: "ಐದು",
+    6: "ಆರು", 7: "ಏಳು", 8: "ಎಂಟು", 9: "ಒಂಬತ್ತು", 10: "ಹತ್ತು",
+    11: "ಹನ್ನೊಂದು", 12: "ಹನ್ನೆರಡು", 13: "ಹದಿಮೂರು", 14: "ಹದಿನಾಲ್ಕು", 15: "ಹದಿನೈದು",
+    16: "ಹದಿನಾರು", 17: "ಹದಿನೇಳು", 18: "ಹದಿನೆಂಟು", 19: "ಹತ್ತೊಂಬತ್ತು", 20: "ಇಪ್ಪತ್ತು",
+    21: "ಇಪ್ಪತ್ತೊಂದು", 22: "ಇಪ್ಪತ್ತೆರಡು", 23: "ಇಪ್ಪತ್ತಮೂರು", 24: "ಇಪ್ಪತ್ನಾಲಕ್ಕು", 25: "ಇಪ್ಪತ್ತೈದು",
+    26: "ಇಪ್ಪತ್ತಾರು", 27: "ಇಪ್ಪತ್ತೇಳು", 28: "ಇಪ್ಪತ್ತೆಂಟು", 29: "ಇಪ್ಪತ್ತೊಂಬತ್ತು", 30: "ಮೂವತ್ತು",
+    31: "ಮೂವತ್ತೊಂದು", 40: "ನಲವತ್ತು", 45: "ನಲವತ್ತೈದು", 50: "ಐವತ್ತು", 60: "ಅರವತ್ತು", 90: "ತೊಂಬತ್ತು",
+}
+
+
+def kn_number_word(n: int) -> str:
+    if n in KN_COUNT_WORDS:
+        return KN_COUNT_WORDS[n]
+    if 20 < n < 100:
+        tens = (n // 10) * 10
+        units = n % 10
+        t_str = KN_COUNT_WORDS.get(tens, "")
+        u_str = KN_COUNT_WORDS.get(units, "")
+        if t_str and u_str:
+            return f"{t_str} {u_str}"
+    return str(n)
+
 def format_day_count(days: int, language: str) -> str:
     """Format a count of days into words for the customer's language.
     Amounts stay in digits/English, while day counts are spoken in the customer's language."""
@@ -256,6 +280,8 @@ def format_day_count(days: int, language: str) -> str:
         return te_number_word(days)
     if language == "hi":
         return hi_number_word(days)
+    if language == "kn":
+        return kn_number_word(days)
     return str(days)
 
 
@@ -597,11 +623,11 @@ DAY_OF_MONTH_RE = re.compile(
 
 WEEKDAY_WORDS = [  # Monday first; English, Telugu, English in Telugu letters, Hindi
 
-    ("monday", "సోమవార", "మండే", "सोमवार", "मंडे"), ("tuesday", "మంగళవార", "ట్యూస్డే", "मंगलवार"),
+    ("monday", "సోమవార", "మండే", "सोमवार", "मंडे", "ಸೋಮವಾರ"), ("tuesday", "మంగళవార", "ట్యూస్డే", "मंगलवार", "ಮಂಗಳವಾರ"),
 
-    ("wednesday", "బుధవార", "వెడ్నెస్డే", "बुधवार"), ("thursday", "గురువార", "థర్స్డే", "गुरुवार", "बृहस्पतिवार"),
+    ("wednesday", "బుధవార", "వెడ్నెస్డే", "बुधवार", "ಬುಧವಾರ"), ("thursday", "గురువార", "థర్స్డే", "गुरुवार", "बृहस्पतिवार", "ಗುರುವಾರ"),
 
-    ("friday", "శుక్రవార", "ఫ్రైడే", "शुक्रवार", "फ्राइडे"), ("saturday", "శనివార", "సాటర్డే", "शनिवार"),
+    ("friday", "శుక్రవార", "ఫ్రైడే", "शुक्रवार", "फ्राइडे", "ಶುಕ್ರವಾರ"), ("saturday", "శనివార", "సాటర్డే", "शनिवार", "ಶನಿವಾರ"),
 
     ("sunday", "ఆదివార", "సండే", "रविवार", "इतवार", "संडे"),
 

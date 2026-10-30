@@ -15,13 +15,13 @@ from ria import dates
 
 class TestPaidClaimsAndPTP(unittest.IsolatedAsyncioTestCase):
     def test_stt_keywords_contain_negations(self):
-        """Fix 2: Ensure STT_KEYWORDS contains negative and refusal keywords to steer recognition."""
+        """Ensure STT_KEYWORDS contains negative and refusal keywords to steer recognition."""
         expected_negatives = ["కట్టను", "కట్టనండి", "కట్టేది లేదు", "కట్టలేను", "కాదు", "లేదు", "नहीं दूँगा", "won't pay"]
         for word in expected_negatives:
             self.assertIn(word, STT_KEYWORDS, f"Expected '{word}' to be present in STT_KEYWORDS")
 
     def test_explicit_paid_regex(self):
-        """Fix 3: Test that EXPLICIT_PAID_RE identifies claims with methods/dates, and separates bare ambiguous verbs."""
+        """Test that EXPLICIT_PAID_RE identifies claims with methods/dates, and separates bare ambiguous verbs."""
         explicit_samples = [
             "నేను PhonePe చేసానండి",
             "Google Pay చేశానండి",
@@ -97,7 +97,7 @@ class TestPaidClaimsAndPTP(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(bool(PAID_CLAIM_RE.search(phrase)), f"Expected '{phrase}' NOT to match PAID_CLAIM_RE")
 
     async def test_explicit_paid_asks_confirmation_first(self):
-        """Fix 3: All payment claims (even explicit e.g. PhonePe) verify first to prevent acoustic errors."""
+        """All payment claims (even explicit e.g. PhonePe) verify first to prevent acoustic errors."""
         call = {
             "call_id": "test-201",
             "customer_name": "Vikas",
@@ -138,7 +138,7 @@ class TestPaidClaimsAndPTP(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(refuses(phrase), f"Expected '{phrase}' to match refuses()")
 
     async def test_ambiguous_paid_confirms_first_then_saves(self):
-        """Fix 3: Ambiguous claim ('నేను కట్టానండి.') triggers confirmation question, then saves on 'అవునండి'."""
+        """Ambiguous claim ('నేను కట్టానండి.') triggers confirmation question, then saves on 'అవునండి'."""
         call = {
             "call_id": "test-202",
             "customer_name": "Vikas",
@@ -166,7 +166,7 @@ class TestPaidClaimsAndPTP(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(mock_save.call_args[0][0], "PAYMENT_MADE")
 
     async def test_ambiguous_paid_refusal_clarification_prompts_partial_30(self):
-        """Fix 3: Ambiguous claim followed by refusal clarification triggers 30% partial payment offer."""
+        """Ambiguous claim followed by refusal clarification triggers 30% partial payment offer."""
         call = {
             "call_id": "test-203",
             "customer_name": "Vikas",

@@ -35,6 +35,8 @@ STT_KEYWORDS = [
     "नहीं दूँगा", "नहीं देंगे", "नहीं भरूँगा", "पैसे नहीं हैं", "गलत नंबर", "नहीं",
     # Negations & Refusals (English)
     "won't pay", "cannot pay", "not him", "wrong number", "no funds",
+    # Negations & Refusals (Kannada)
+    "ಕಟ್ಟಲ್ಲ", "ಆಗಲ್ಲ", "ಮಾಡಲ್ಲ", "ಕೊಡಲ್ಲ", "ಇಲ್ಲ", "ದುಡ್ಡಿಲ್ಲ", "ತಪ್ಪು ನಂಬರ್", "ಹೌದು", "ಕಟ್ಟಿದ್ದೀನಿ", "ಮಾಡ್ತೀನಿ",
 ]
 
 

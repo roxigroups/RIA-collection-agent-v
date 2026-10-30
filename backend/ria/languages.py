@@ -14,7 +14,7 @@ from __future__ import annotations
 import re
 from difflib import SequenceMatcher
 
-NAMES = {"te": "Telugu", "hi": "Hindi", "en": "English"}
+NAMES = {"te": "Telugu", "hi": "Hindi", "en": "English", "kn": "Kannada"}
 
 # Language names a customer might use ("speak in Hindi", "తెలుగులో మాట్లాడండి",
 # "हिंदी में बोलो"), in Latin, Telugu, Devanagari and Kannada letters (Pulse in
@@ -23,13 +23,14 @@ REQUEST_NAMES = {
     "en": ("english", "ఇంగ్లీష్", "ఇంగ్లిష్", "इंग्लिश", "अंग्रेज़ी", "अंग्रेजी", "ಇಂಗ್ಲಿಷ್"),
     "hi": ("hindi", "हिंदी", "हिन्दी", "హిందీ", "హింది", "ಹಿಂದಿ"),
     "te": ("telugu", "తెలుగు", "तेलुगु", "तेलुगू", "ತೆಲುಗು"),
+    "kn": ("kannada", "ಕನ್ನಡ", "కన్నడ", "कन्नड़", "ಕನ್ನಡ್"),
 }
 # A "not" next to a language name means the customer does NOT want it: "Please
 # speak in English. I don't understand Telugu." switched to English and straight
 # back. English puts the "not" before the name, Telugu and Hindi after it
 NOT_BEFORE_RE = re.compile(r"^(?:don'?t|dont|doesn'?t|can'?t|cant|cannot|not|no|never|without)$", re.I)
 NOT_AFTER_RE = re.compile(
-    r"^(?:రాదు|రావు|తెలియదు|తెలీదు|అర్థం|అర్ధం|వద్దు|కాదు|రాదండి|వద్దండి)|^(?:नहीं|नही|मत|ना|नहि)$"
+    r"^(?:రాదు|రావు|తెలియదు|తెలీదు|అర్థం|అర్ధం|వద్దు|కాదు|రాదండి|వద్దండి)|^(?:नहीं|नही|मत|ना|नहि)|^(?:ಗೊತ್ತಿಲ್ಲ|ಬರಲ್ಲ|ಬೇಡ|ಅರ್ಥವಾಗಲ್ಲ|ಅರ್ಥವಿಲ್ಲ|ಅಲ್ಲ)$"
 )
 NOT_BEFORE, NOT_AFTER = 2, 3
 
@@ -38,12 +39,18 @@ NOT_BEFORE, NOT_AFTER = 2, 3
 # name on the call sheet ("నేను వసీం", "वसीम बोल रहा हूँ" -> WASEEM)
 CONSONANTS = dict(zip(
     "కఖగఘఙచఛజఝఞటఠడఢణతథదధనపఫబభమయరఱలళవశషసహ"
-    "कखगघङचछजझञटठडढणतथदधनपफबभमयरऱलळवशषसह",
-    "k kh g gh n ch ch j jh n t th d dh n t th d dh n p f b bh m y r r l l v sh sh s h ".split() * 2,
+    "कखगघङचछजझञटठडढणतथदधनपफबभमयरऱलळवशषसह"
+    "ಕಖಗಘಙಚಛಜಝಞಟಠಡಢಣತಥದಧನಪಫಬಭಮಯರಱಲಳವಶಷಸಹ",
+    "k kh g gh n ch ch j jh n t th d dh n t th d dh n p f b bh m y r r l l v sh sh s h ".split() * 3,
 ))
-VOWELS = dict(zip("అఆఇఈఉఊఎఏఐఒఓఔअआइईउऊएऐओऔ", "a aa i ee u oo e e ai o o au a aa i ee u oo e ai o au".split()))
-SIGNS = dict(zip("ాిీుూెేైొోౌంః్ािीुूेैोौंःँ्",
-                 "aa i ee u oo e e ai o o au m h _ aa i ee u oo e ai o au m h n _".split()))
+VOWELS = dict(zip(
+    "అఆఇఈఉఊఎఏఐఒఓఔअआइईउऊएऐओऔಅಆಇಈಉಊಎಏಐಒಓಔ",
+    "a aa i ee u oo e e ai o o au a aa i ee u oo e ai o au a aa i ee u oo e e ai o o au".split(),
+))
+SIGNS = dict(zip(
+    "ాిీుూెేైొోౌంః్ािीुूेैोौंःँ್ಾಿೀುೂೆೇೈೊೋೌಂಃ್",
+    "aa i ee u oo e e ai o o au m h _ aa i ee u oo e ai o au m h n _ aa i ee u oo e e ai o o au m h _".split(),
+))
 
 
 def romanize(text: str) -> str:

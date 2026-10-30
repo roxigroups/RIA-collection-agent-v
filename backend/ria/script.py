@@ -41,36 +41,43 @@ DEFAULT_LINES = {
         "te": "నమస్కారం అండీ, నేను {company} నుంచి రియా ని మాట్లాడుతున్నాను. {customer} గారితో మాట్లాడవచ్చా అండీ?",
         "hi": "नमस्ते जी, मैं {company} से रिया बोल रही हूँ। क्या मेरी बात {customer} जी से हो सकती है?",
         "en": "Hello, I am Ria calling from {company}. May I speak with {customer}?",
+        "kn": "ನಮಸ್ಕಾರ, ನಾನು {company} ಇಂದ ರಿಯಾ ಮಾತಾಡ್ತಾ ಇದೀನಿ. {customer} ಅವರ ಜೊತೆ ಮಾತಾಡಬಹುದಾ?",
     },
     "COLLECTION_OPENINGS_GENERIC": {
         "te": "నమస్కారం అండీ, నేను {company} నుంచి రియా ని మాట్లాడుతున్నాను. మేనేజర్ గారితో లేదా accounts చూసుకునే వారితో మాట్లాడవచ్చా అండీ?",
         "hi": "नमस्ते जी, मैं {company} से रिया बोल रही हूँ। क्या मेरी बात ओनर या अकाउंट्स देखने वाले से हो सकती है?",
         "en": "Hello, I am Ria calling from {company}. May I speak with the owner or accounts in-charge?",
+        "kn": "ನಮಸ್ಕಾರ, ನಾನು {company} ಇಂದ ರಿಯಾ ಮಾತಾಡ್ತಾ ಇದೀನಿ. ಓನರ್ ಅಥವಾ accounts ನೋಡಿಕೊಳ್ಳುವವರ ಜೊತೆ ಮಾತಾಡಬಹುದಾ?",
     },
     "COLLECTION_WHO_ASK": {
         "te": "మీరు {customer} గారేనా అండీ?",
         "hi": "क्या आप {customer} जी बात कर रहे हैं?",
         "en": "Are you {customer}?",
+        "kn": "ನೀವು {customer} ಅವರೇನಾ?",
     },
     "COLLECTION_AMOUNT_LINES": {
         "te": "{company} లో మీ invoice {invoice_no} కి సంబంధించి {amount} balance ఉంది అండీ. {overdue}. మీరు ఈ payment ఎప్పటి వరకు చేయగలరు అండీ?",
         "hi": "{company} में आपके invoice {invoice_no} के {amount} बाकी हैं जी। {overdue}। आप इसका payment कब तक कर पाएंगे जी?",
         "en": "This is regarding your invoice {invoice_no} with {company} for {amount}, which is {overdue}. By when can you make this payment?",
+        "kn": "{company} ನಲ್ಲಿ ನಿಮ್ಮ invoice {invoice_no} ಗೆ ಸಂಬಂಧಿಸಿದಂತೆ {amount} balance ಬಾಕಿ ಇದೆ. {overdue}. ನೀವು ಈ payment ಯಾವಾಗ ಮಾಡ್ತೀರಾ?",
     },
     "COLLECTION_AMOUNT_NO_INV": {
         "te": "{company} లో మీ account లో {amount} balance due ఉంది అండీ. {overdue}. మీరు ఈ payment ఎప్పటి వరకు చేయగలరు అండీ?",
         "hi": "{company} में आपके अकाउंट में {amount} बाकी हैं जी। {overdue}। आप इसका payment कब तक कर पाएंगे जी?",
         "en": "This is regarding your pending balance of {amount} with {company}, which is {overdue}. By when can you make this payment?",
+        "kn": "{company} ನಲ್ಲಿ ನಿಮ್ಮ account ನಲ್ಲಿ {amount} balance ಬಾಕಿ ಇದೆ. {overdue}. ನೀವು ಈ payment ಯಾವಾಗ ಮಾಡ್ತೀರಾ?",
     },
     "COLLECTION_INV_NO_AMOUNT": {
         "te": "నేను {company} నుంచి మీ invoice {invoice_no} payment follow-up గురించి కాల్ చేస్తున్నాను అండీ. మీరు ఈ payment ఎప్పటి వరకు చేయగలరు అండీ?",
         "hi": "मैं {company} से आपके invoice {invoice_no} के पेमेंट फ़ॉलो-अप के सिलसिले में बात कर रही हूँ जी। आप इसका payment कब तक कर पाएंगे जी?",
         "en": "I am calling regarding payment follow-up for your invoice {invoice_no} with {company}. By when can you make this payment?",
+        "kn": "ನಾನು {company} ಇಂದ ನಿಮ್ಮ invoice {invoice_no} payment follow-up ಬಗ್ಗೆ ಕಾಲ್ ಮಾಡ್ತಾ ಇದೀನಿ. ನೀವು ಈ payment ಯಾವಾಗ ಮಾಡ್ತೀರಾ?",
     },
     "COLLECTION_GENERIC_FOLLOWUP": {
         "te": "నేను {company} నుంచి మీ pending payment follow-up గురించి కాల్ చేస్తున్నాను అండీ. మీరు ఈ payment ఎప్పటి వరకు చేయగలరు అండీ?",
         "hi": "मैं {company} से आपके पेंडिंग पेमेंट फ़ॉलो-अप के सिलसिले में बात कर रही हूँ जी। आप इसका payment कब तक कर पाएंगे जी?",
         "en": "I am calling regarding pending payment follow-up with {company}. By when can you make this payment?",
+        "kn": "ನಾನು {company} ಇಂದ ನಿಮ್ಮ pending payment follow-up ಬಗ್ಗೆ ಕಾಲ್ ಮಾಡ್ತಾ ಇದೀನಿ. ನೀವು ಈ payment ಯಾವಾಗ ಮಾಡ್ತೀರಾ?",
     },
     "DUE_PHRASES": {
         "te": {
@@ -91,65 +98,82 @@ DEFAULT_LINES = {
             "today": "due today",
             "upcoming": "due in {days} days",
         },
+        "kn": {
+            "overdue": "{days} ದಿನಗಳ ಹಿಂದೆಯೇ due ಆಗಿದೆ",
+            "overdue_one": "ನಿನ್ನೆಯೇ due ಆಗಿದೆ",
+            "today": "ಇವತ್ತೇ due date",
+            "upcoming": "ಇನ್ನೂ {days} ದಿನಗಳಲ್ಲಿ due ಇದೆ",
+        },
     },
     "DATE_READBACKS": {
         "te": "మీరు {month} {day} ({weekday}) లోపు payment చేస్తానని చెప్పారు, correct అండీ?",
         "hi": "आपने {day} {month} ({weekday}) तक payment करने का वादा किया है, सही है ना जी?",
         "en": "You committed to payment by {weekday}, {month} {day}. Is that correct?",
+        "kn": "ನೀವು {month} {day} ({weekday}) ಒಳಗಡೆ payment ಮಾಡ್ತೀನಿ ಅಂತ ಹೇಳಿದ್ದೀರಿ, ಸರಿಯಾ?",
     },
     "DATE_LIMIT_LINES": {
         "te": "దయచేసి {month} {day} ({weekday}) లోపు payment complete చేయగలరా అండీ?",
         "hi": "कृपया {day} {month} ({weekday}) तक payment clear कर दीजिए जी।",
         "en": "Could you please complete the payment by {weekday}, {month} {day}?",
+        "kn": "ದಯವಿಟ್ಟು {month} {day} ({weekday}) ಒಳಗಡೆ payment ಪೂರ್ತಿ ಮಾಡ್ತೀರಾ?",
     },
     "COLLECTION_GOODBYES": {
         "te": "సరేనండి, మీ సమయానికి ధన్యవాదాలు. హావ్ ఏ గుడ్ డే.",
         "hi": "ठीक है जी, आपके समय के लिए धन्यवाद। आपका दिन शुभ हो।",
         "en": "Thank you for your time. Have a good day.",
+        "kn": "ಸರಿ, ನಿಮ್ಮ ಸಮಯಕ್ಕೆ ಧನ್ಯವಾದಗಳು. Have a good day.",
     },
     "COLLECTION_ARE_YOU_THERE": {
         "te": "హలో అండీ, నా మాట వినిపిస్తోందా?",
         "hi": "हेलो जी, क्या आप मुझे सुन पा रहे हैं?",
         "en": "Hello, are you still there?",
+        "kn": "ಹಲೋ, ನಾನು ಮಾತಾಡೋದು ಕೇಳಿಸ್ತಾ ಇದೆಯಾ?",
     },
     "COLLECTION_REPEAT": {
         "te": "క్షమించండి, మళ్లీ చెప్పగలరా?",
         "hi": "माफ़ कीजिए, क्या आप दोहरा सकते हैं?",
         "en": "Pardon me, could you repeat that?",
+        "kn": "ಕ್ಷಮಿಸಿ, ಇನ್ನೊಮ್ಮೆ ಹೇಳ್ತೀರಾ?",
     },
     "UNKNOWN_CALLER": {
         "te": "నమస్కారం అండీ, నేను {company} నుంచి రియా ని. మీకు ఏ విధంగా సహాయపడగలను?",
         "hi": "नमस्ते जी, मैं {company} से रिया बोल रही हूँ। मैं आपकी क्या मदद कर सकती हूँ?",
         "en": "Hello, this is Ria calling from {company}. How can I assist you today?",
+        "kn": "ನಮಸ್ಕಾರ, ನಾನು {company} ಇಂದ ರಿಯಾ. ನಿಮಗೆ ಹೇಗೆ ಸಹಾಯ ಮಾಡಬಹುದು?",
     },
     # Someone else answered: do they handle the payments? (the user's rule in prompts.py)
     "COLLECTION_PAYMENTS_ASK": {
         "te": "{customer} గారి payments, accounts మీరు చూసుకుంటారా అండీ?",
         "hi": "क्या {customer} जी के payments और accounts आप देखते हैं?",
         "en": "Do you handle the payments or accounts for {customer}?",
+        "kn": "{customer} ಅವರ payments ಮತ್ತು accounts ನೀವು ನೋಡ್ಕೋತೀರಾ?",
     },
     # ...they don't: the message for the customer, then when to call back
     "COLLECTION_MESSAGE": {
         "te": "దయచేసి {customer} గారికి {company} accounts team నుంచి రియా call చేశారని చెప్పండి.",
         "hi": "कृपया {customer} जी को बता दीजिए कि {company} accounts team से रिया का call आया था।",
         "en": "Please tell {customer} that Ria from the {company} accounts team called.",
+        "kn": "ದಯವಿಟ್ಟು {customer} ಅವರಿಗೆ {company} accounts team ಇಂದ ರಿಯಾ ಕಾಲ್ ಮಾಡಿದ್ರು ಅಂತ ತಿಳಿಸ್ತೀರಾ?",
     },
     "COLLECTION_WHEN_AVAILABLE": {
         "te": "{customer} గారు ఎప్పుడు అందుబాటులో ఉంటారు?",
         "hi": "{customer} जी से कब बात हो पाएगी?",
         "en": "When can we reach {customer}?",
+        "kn": "{customer} ಅವರು ಯಾವಾಗ ಸಿಗ್ತಾರೆ?",
     },
     # A callback with no exact time: none ("busy, call later"), vague ("రేపు సాయంత్రం") or past
     "CALLBACK_TIME_ASK": {
         "te": "తప్పకుండా అండీ. ఏ time కి call చేయమంటారు? సరిగ్గా ఆ time కే call చేస్తాను.",
         "hi": "ज़रूर जी। किस time पर call करूँ? ठीक उसी time पर call करूँगी।",
         "en": "Of course. What time should I call? I'll call you exactly then.",
+        "kn": "ಖಂಡಿತ. ಯಾವ time ಗೆ ಕಾಲ್ ಮಾಡ್ಲಿ? ಕರೆಕ್ಟ್ ಆಗಿ ಅದೇ time ಗೆ ಕಾಲ್ ಮಾಡ್ತೀನಿ.",
     },
     # Confirming an ambiguous single payment claim ("కట్టానండి") to avoid mishearing refusal ("కట్టనండి")
     "COLLECTION_CONFIRM_PAID": {
         "te": "మీరు payment ఇప్పటికే చేశారా అండీ?",
         "hi": "क्या आप पेमेंट पहले ही कर चुके हैं जी?",
         "en": "Have you already completed the payment?",
+        "kn": "ನೀವು payment ಈಗಾಗಲೇ ಮಾಡಿದ್ದೀರಾ?",
     },
 }
 # Goodbyes for outcomes prompts.py has none for (it uses the general one otherwise)
@@ -159,12 +183,14 @@ DEFAULT_CLOSINGS = {
         "te": "ధన్యవాదాలు అండీ. మీరు చెప్పిన payment వివరాలు మా accounts team తో cross-check చేస్తాము. Have a good day.",
         "hi": "धन्यवाद जी। आपके पेमेंट की डिटेल्स हम हमारी अकाउंट्स टीम के साथ क्रॉस-चेक कर लेंगे। आपका दिन शुभ हो।",
         "en": "Thank you. We will cross-check your payment details with our accounts team. Have a good day.",
+        "kn": "ಧನ್ಯವಾದಗಳು. ನೀವು ಹೇಳಿದ payment ವಿವರಗಳನ್ನು ನಮ್ಮ accounts team ಜೊತೆ cross-check ಮಾಡ್ತೀವಿ. Have a good day.",
     },
     # Won't commit to anything now (the demo script): the team follows up in person
     "PAYMENT_REFUSED": {
         "te": "పర్లేదండీ, అర్థం చేసుకున్నాను. మీ response note చేసుకున్నాను, మా team నుంచి ఎవరైనా మీతో personal గా మాట్లాడతారు. Thank you.",
         "hi": "कोई बात नहीं जी, मैं समझती हूँ। मैंने आपका response note कर लिया है, हमारी team से कोई आपसे personally बात करेगा। धन्यवाद।",
         "en": "That's alright, I understand. I've noted your response, and someone from our team will speak with you personally. Thank you.",
+        "kn": "ಪರವಾಗಿಲ್ಲ, ಅರ್ಥ ಆಯ್ತು. ನಿಮ್ಮ response note ಮಾಡಿಕೊಂಡಿದ್ದೇನೆ, ನಮ್ಮ team ಇಂದ ಯಾರಾದ್ರೂ ನಿಮ್ಮ ಜೊತೆ personally ಮಾತಾಡ್ತಾರೆ. Thank you.",
     },
 }
 # Placeholders prompts.py may use; any other {word} is spoken as written
@@ -223,7 +249,12 @@ def load() -> SimpleNamespace:
             logger.info("prompts.py has no %s; using the last working version of those", ", ".join(kept))
 
         def entry(name, default=None):
-            return saved[name] if name in kept else given(name, default)
+            if name in kept:
+                val = saved[name]
+                if isinstance(val, dict) and isinstance(default, dict):
+                    return {**default, **val}
+                return val
+            return given(name, default)
 
         loaded = {}
         for name in TEXTS:
@@ -242,7 +273,7 @@ def load() -> SimpleNamespace:
         closings = entry("CLOSING_LINES", {})
         if not isinstance(closings, dict) or not all(isinstance(v, dict) and v for v in closings.values()):
             raise ValueError("CLOSING_LINES must map each outcome code to at least one language's line")
-        loaded["CLOSING_LINES"] = {**DEFAULT_CLOSINGS, **closings}
+        loaded["CLOSING_LINES"] = {k: {**DEFAULT_CLOSINGS.get(k, {}), **closings.get(k, {})} for k in set(DEFAULT_CLOSINGS) | set(closings)}
     except Exception as e:
         if not vars(PROMPTS):
             if not (saved := last_good()):

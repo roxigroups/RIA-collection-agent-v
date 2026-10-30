@@ -38,6 +38,7 @@ DB = DatabaseDriver()
 YES_WORDS = {
     "హా", "ఆఁ", "అవును", "జీ", "సరే", "ఓకే", "నేనే",
     "हाँ", "हां", "हा", "जी", "हाँजी", "yes", "yeah", "yep", "speaking", "haan", "han", "ji", "ok", "okay",
+    "ಹೌದು", "ಸರಿ", "ಆಗಲಿ", "ನಾನೇ", "ಹೌದ್ರಿ", "ಹೌದುರೀ", "ಹಾ",
 }
 YES_STEMS = ("అవున", "ఆవున", "ఔన", "ఆనండ", "ఆఉండ", "అవుండ", "చెప్ప", "చెపండ", "మాట్లాడుతున్న", "సరేనండ", "బోలియే", "बोलिए", "बोलो", "बोल रह", "मैं ही",
              "tell me")
@@ -46,31 +47,35 @@ NOT_YES = (
     "లేదు", "లేద", "లేరు", "లేర", "లేడు", "లేడ", "వద్దు", "వద్ద", "కుదర", "కట్ట", "ఇవ్వ",
     "नहीं", "नही", "गलत", "कौन", "क्या", "क्यों", "बाद में", "व्यस्त", "बिज़ी", "बिजी", "ना", "मत",
     "no", "not", "wrong", "who", "what", "why", "busy", "later", "don't", "cant", "cannot", "won't", "?",
+    "ಅಲ್ಲ", "ಇಲ್ಲ", "ಯಾರು", "ಏನು", "ಯಾಕೆ", "ಬೇಡ", "ಆಗಲ್ಲ", "ತಪ್ಪು",
 )
 # Agreeing ("సరేండి. అప్పటికి కడతాను.") or saying no to a date RIA read back
 AGREES_RE = re.compile(
     r"సరే|ఓకే|ఒకే|అవున|ఆవున|ఔన|ఆనండ|ఆఉండ|అవుండ|అప్పటికి|అప్పటిలోగా|ఆ లోపు|కడతా|కట్టేస్తా|చేస్తా|కరెక్ట్"
     r"|ठीक|हाँ|हां|हांजी|सही|कर दूँगा|कर दूंगा|कर दूँगी|कर दूंगी|तब तक"
+    r"|ಸರಿ|ಹೌದು|ಆಗಲಿ|ಖಂಡಿತ|ಮಾಡ್ತೀನಿ|ಮಾಡ್ತೇನೆ|ಕೊಡ್ತೀನಿ|ಕೊಡ್ತೇನೆ|ಕಟ್ತೀನಿ|ಕಟ್ತೇನೆ|ಕಟ್ಟ್ತೀನಿ|ಕಟ್ಟ್ತೇನೆ|ಆಗುತ್ತೆ|ಆಯ್ತು"
     r"|\b(?:ok|okay|yes|yeah|sure|fine|done|correct|right|will pay|by then)\b",
     re.I,
 )
 REFUSAL_RE = re.compile(
     r"కుదర|లేదు|లేదండ|కాదు|అవ్వదు|చేయలే[నున]|కట్టలే[నున]|కట్ట[నున]|చెల్లించ[నున]|ఇవ్వ[నున]|ఇయ్య[నున]|చేయన"
     r"|नहीं|नही|मुश्किल|नहीं दूँ|नहीं दूंग|नहीं भरूँ|नहीं भरूंग|नहीं देंगे"
+    r"|ಆಗಲ್ಲ|ಆಗೋದಿಲ್ಲ|ಮಾಡಲ್ಲ|ಕೊಡಲ್ಲ|ಕಟ್ಟಲ್ಲ|ಕಟ್ಲಾರೆ|ಇಲ್ಲ|ಸಾಧ್ಯವಿಲ್ಲ|ಮಾಡೋಕಾಗಲ್ಲ|ಕೊಡೋಕಾಗಲ್ಲ"
     r"|can'?t|cannot|not possible|won'?t pay|will not pay|\bno\b", re.I
 )
 # "No problem" says yes, though it has a "no" in it ("పర్లేదు" ends in "లేదు")
 NO_PROBLEM_RE = re.compile(
-    r"పర్లేదు|పర్వాలేదు|ఫర్వాలేదు|ఏం పర్లేదు|no problem|no issues?|कोई बात नहीं|कोई दिक्कत नहीं|कोई प्रॉब्लम नहीं", re.I
+    r"పర్లేదు|పర్వాలేదు|ఫర్వాలేదు|ఏం పర్లేదు|no problem|no issues?|कोई बात नहीं|कोई दिक्कत नहीं|कोई प्रॉब्लम नहीं|ಪರವಾಗಿಲ್ಲ|ಏನೂ ತೊಂದರೆ ಇಲ್ಲ|ತೊಂದರೆ ಇಲ್ಲ", re.I
 )
 # "I already paid" in the customer's words: RIA says the team will cross-check it and ends
 # the call (the user's rule; asking for the amount and reference lost the claim when the
 # customer hung up). Past tense only: "కట్టేస్తా" (I'll pay) is a promise, not this
-_PAID_WITH = r"(?:పే|పేమెంట్|payment|అమౌంట్|amount|డబ్బులు|UPI|యూపీఐ|ట్రాన్స్ఫర్|transfer|ఫోన్ ?పే|phone ?pe|గూగుల్ ?పే|google ?pay|g ?pay)"
+_PAID_WITH = r"(?:పే|పేమెంట్|payment|అమౌంట్|amount|డబ్బులు|UPI|యూపీఐ|ట్రాన్స్ఫర్|transfer|ఫోన్ ?పే|phone ?pe|గూగుల్ ?పే|google ?pay|g ?pay|ದುಡ್ಡು|ಹಣ|ಪಾವತಿ|ಯುಪಿಐ)"
 PAID_CLAIM_RE = re.compile(
     r"already paid|paid already|\b(?:i|we) (?:have |had )?(?:already )?paid\b|payment (?:is |was )?(?:made|done|completed)"
     r"|\b(?:i|we) (?:have )?(?:made|done|sent|transferred) (?:the )?payment"
     r"|చెల్లించా(?!లి)|చెల్లించే[శస]ా|కట్టా[ననుంమ]|కట్టే[శస]ా|పేమెంట్\s*అయి"
+    r"|ಕಟ್ಟಿದ್ದೀನಿ|ಕಟ್ಟಿದೀನಿ|ಕಟ್ಟಿದೆ|ಮಾಡಿದ್ದೀನಿ|ಮಾಡಿದೀನಿ|ಮಾಡಿದೆ|ಪಾವತಿಸಿದ್ದೀನಿ|ಪಾವತಿಸಿದೀನಿ|ಕಳಿಸಿದ್ದೀನಿ|ಕಳ್ಸಿದೀನಿ|ಪಾವತಿ\s*ಆಗಿದೆ|ಪೇಮೆಂಟ್\s*ಆಗಿದೆ"
     r"|" + _PAID_WITH + r"\s*(?:\S+\s*){0,2}?(?:చే[శస]ే[శస]ా|చే[శస]ా[ననుంమ]|చే[శస]ా|పంప|వే[శస]ా|అయి)"
     r"|(?:पेमेंट|भुगतान|पैसे|payment)\s*(?:\S+\s*){0,2}?(?:कर दिया|कर दी|कर चुका|कर चुकी|हो गया|हो गई|भेज दिया"
     r"|भेज दिए|दे दिया|दे दिए|डाल दिया)",
@@ -88,11 +93,12 @@ EXPLICIT_PAID_RE = re.compile(
     r"|भेज दिए|दे दिया|दे दिए|डाल दिया)",
     re.I,
 )
-# Answers to a date read-back that say something else than yes, from the review patch:
+# Answers to a date read-back that contradict agreement:
 # "I already paid", "call me" or "I'm busy" contradict it, so nothing is saved
 CONTRADICTS_RE = re.compile(
     r"already paid|paid already|payment (?:is )?(?:made|done)|\b(?:i|we) (?:have )?paid\b|\b(?:call|callback|busy)\b"
     r"|చెల్లించా(?!లి)|చెల్లించే[శస]ా|కట్టా[ననుంమ]|కట్టే[శస]ా|పేమెంట్\s*అయి|ఆల్రెడీ|కాల్ చేయ|బిజీ"
+    r"|ಕಟ್ಟಿದ್ದೀನಿ|ಪಾವತಿ\s*ಆಗಿದೆ|ಕಾಲ್ ಮಾಡಿ|ಬ್ಯುಸಿ|ಬಿಝಿ"
     r"|" + _PAID_WITH + r"\s*(?:\S+\s*){0,2}?(?:చే[శస]ే[శస]ా|చే[శస]ా[ననుంమ]|చే[శస]ా|పంప|వే[శస]ా|అయి)"
     r"|(?:पेमेंट|भुगतान|पैसे|payment)\s*(?:\S+\s*){0,2}?(?:कर दिया|कर दी|कर चुका|कर चुकी|हो गया|हो गई|भेज दिया"
     r"|भेज दिए|दे दिया|दे दिए|डाल दिया)"
@@ -102,7 +108,7 @@ CONTRADICTS_RE = re.compile(
 # ...and "the invoice is wrong", "later" or a question: not a quick yes, so the model
 # hears it (it may still be a yes, which the model then saves)
 DOUBT_RE = re.compile(
-    r"invoice|delivery|dispute|\blater\b|తర్వాత|ఇన్వాయిస్|డెలివరీ|बाद में|इनवॉइस|डिलीवरी"
+    r"invoice|delivery|dispute|\blater\b|తర్వాత|ఇన్వాయిస్|డెలివరీ|बाद में|इनवॉइस|डिलीवरी|ನಂತರ|ಆಮೇಲೆ|ಯಾಕೆ|ಏನು|ಯಾರು|ಹೇಗೆ|ಎಷ್ಟು"
     r"|^\W*(?:why|what|who|how|when|where)\b|\b(?:why|what|who|how|when|where)\W*$"
     r"|ఎందుకు|ఏంటి|ఎవరు|क्यों|कौन",
     re.I,
@@ -748,7 +754,7 @@ class CollectionAgent(Agent):
     async def switch_language(
         self,
         context: RunContext,
-        language: Annotated[Literal["te", "hi", "en"], "te Telugu, hi Hindi, en English"],
+        language: Annotated[Literal["te", "hi", "en", "kn"], "te Telugu, hi Hindi, en English, kn Kannada"],
     ):
         """Change the conversation language: the customer asked for it, or has been
         speaking it (Hindi or English may reach you written in Telugu letters)."""
