@@ -34,7 +34,7 @@ function outcomeChip(outcome: string) {
 
 // The campaign as a phone dialer: the call on the line, big call / pause buttons,
 // and the whole imported sheet with where each row's call is
-export default function CampaignDialer({ batch }: { batch: CallBatch }) {
+export default function CampaignDialer({ batch, initialSearch }: { batch: CallBatch; initialSearch?: string }) {
   const { startBatch, pauseBatch, dialCallNow, removeSheetRow, callRetailer, canAct, refresh, setSelectedCallId, retailers } = useApp();
   const [rows, setRows] = useState<SheetRow[] | null>(null);
   const [dialer, setDialer] = useState<DialerStatus>({});
@@ -42,7 +42,13 @@ export default function CampaignDialer({ batch }: { batch: CallBatch }) {
   const [tick, setTick] = useState(0);
   const [busy, setBusy] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'ALL' | 'PTP' | 'WAITING' | 'UNANSWERED' | 'DISPUTES' | 'PAID'>('ALL');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(initialSearch || '');
+
+  useEffect(() => {
+    if (initialSearch !== undefined) {
+      setSearchQuery(initialSearch);
+    }
+  }, [initialSearch]);
   const lastKey = useRef('');
 
   useEffect(() => {

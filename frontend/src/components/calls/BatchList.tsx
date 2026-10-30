@@ -5,7 +5,7 @@ import { useApp } from '@/context/AppContext';
 import BatchControls, { BatchStateChip, DeleteBatchButton } from './BatchControls';
 
 interface BatchListProps {
-  onSelectBatch: (batchId: string) => void;
+  onSelectBatch: (batchId: string, initialSearch?: string) => void;
 }
 
 export default function BatchList({ onSelectBatch }: BatchListProps) {
@@ -13,16 +13,40 @@ export default function BatchList({ onSelectBatch }: BatchListProps) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
 
+  const getMatchingCustomerNames = (b: typeof batches[0], q: string) => {
+    if (!q.trim()) return [];
+    const query = q.toLowerCase().trim();
+    const matches = new Set<string>();
+    for (const name of b.customerNames || []) {
+      if (name.toLowerCase().includes(query)) matches.add(name);
+    }
+    for (const c of b.calls || []) {
+      if (c.name && c.name.toLowerCase().includes(query)) matches.add(c.name);
+    }
+    return Array.from(matches);
+  };
+
   const filteredBatches = batches.filter((b) => {
     if (statusFilter !== 'ALL' && b.dialState !== statusFilter) return false;
     if (search) {
-      const q = search.toLowerCase();
-      if (
-        !b.id.toLowerCase().includes(q) &&
-        !b.name.toLowerCase().includes(q) &&
-        !b.fileName.toLowerCase().includes(q) &&
-        !b.importedBy.toLowerCase().includes(q)
-      ) {
+      const q = search.toLowerCase().trim();
+      const metaMatch =
+        b.id.toLowerCase().includes(q) ||
+        b.name.toLowerCase().includes(q) ||
+        b.fileName.toLowerCase().includes(q) ||
+        b.importedBy.toLowerCase().includes(q);
+
+      const customerMatch =
+        (b.customerNames || []).some((n) => n.toLowerCase().includes(q)) ||
+        (b.phones || []).some((ph) => ph.includes(q)) ||
+        (b.calls || []).some(
+          (c) =>
+            (c.name && c.name.toLowerCase().includes(q)) ||
+            (c.ph && c.ph.includes(q)) ||
+            (c.ret && c.ret.toLowerCase().includes(q))
+        );
+
+      if (!metaMatch && !customerMatch) {
         return false;
       }
     }
@@ -36,7 +60,7 @@ export default function BatchList({ onSelectBatch }: BatchListProps) {
         <div className="filters">
           <input
             type="text"
-            placeholder="Search batches by ID, campaign name, or filename..."
+            placeholder="Search batches by name, ID, or customer name/phone..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{ maxWidth: '320px', padding: '6px 12px', fontSize: '13px' }}
@@ -80,7 +104,7 @@ export default function BatchList({ onSelectBatch }: BatchListProps) {
                 border: '1px solid var(--line)',
                 padding: '16px 20px',
               }}
-              onClick={() => onSelectBatch(batch.id)}
+              onClick={() => onSelectBatch(batch.id, search.trim())}
               onMouseEnter={(e) => {
                 e.currentTarget.style.borderColor = 'var(--blue)';
                 e.currentTarget.style.boxShadow = '0 4px 12px rgba(26,86,219,0.08)';
@@ -115,6 +139,14 @@ export default function BatchList({ onSelectBatch }: BatchListProps) {
                     Imported: {batch.createdAt} • Uploaded by <b>{batch.importedBy}</b> • Source:{' '}
                     <span className="mono">{batch.fileName}</span>
                   </div>
+                  {search.trim() && getMatchingCustomerNames(batch, search).length > 0 && (
+                    <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span className="chip c-blue" style={{ fontSize: '11px', fontWeight: 600 }}>
+                        👤 Matching Customer: {getMatchingCustomerNames(batch, search).slice(0, 3).join(', ')}
+                        {getMatchingCustomerNames(batch, search).length > 3 ? ` +${getMatchingCustomerNames(batch, search).length - 3} more` : ''}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Batch Actions */}
@@ -137,7 +169,7 @@ export default function BatchList({ onSelectBatch }: BatchListProps) {
                   <button
                     type="button"
                     className="btn btn-primary btn-sm"
-                    onClick={() => onSelectBatch(batch.id)}
+                    onClick={() => onSelectBatch(batch.id, search.trim())}
                   >
                     View Batch Details →
                   </button>

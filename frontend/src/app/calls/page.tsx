@@ -13,6 +13,7 @@ import { useApp } from '@/context/AppContext';
 export default function CallsPage() {
   const { batches, calls, selectedBatchId, setSelectedBatchId } = useApp();
   const [activeTab, setActiveTab] = useState<'batches' | 'all-calls'>('batches');
+  const [batchSearchQuery, setBatchSearchQuery] = useState<string>('');
 
   return (
     <AppShell screenKey="calls">
@@ -72,10 +73,17 @@ export default function CallsPage() {
       {selectedBatchId ? (
         <BatchReportView
           batchId={selectedBatchId}
-          onBack={() => setSelectedBatchId(null)}
+          initialSearch={batchSearchQuery}
+          onBack={() => {
+            setSelectedBatchId(null);
+            setBatchSearchQuery('');
+          }}
         />
       ) : activeTab === 'batches' ? (
-        <BatchList onSelectBatch={(id) => setSelectedBatchId(id)} />
+        <BatchList onSelectBatch={(id, initialSearch) => {
+          setSelectedBatchId(id);
+          setBatchSearchQuery(initialSearch || '');
+        }} />
       ) : (
         <CallsTable />
       )}

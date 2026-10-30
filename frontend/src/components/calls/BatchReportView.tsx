@@ -6,10 +6,11 @@ import CampaignDialer from './CampaignDialer';
 
 interface BatchReportViewProps {
   batchId: string;
+  initialSearch?: string;
   onBack: () => void;
 }
 
-export default function BatchReportView({ batchId, onBack }: BatchReportViewProps) {
+export default function BatchReportView({ batchId, initialSearch, onBack }: BatchReportViewProps) {
   const { batches, downloadBatchReport } = useApp();
   const batch = batches.find((b) => b.id === batchId);
   if (!batch) {
@@ -116,7 +117,7 @@ export default function BatchReportView({ batchId, onBack }: BatchReportViewProp
       </div>
 
       {/* The campaign as a phone dialer, with the whole imported sheet */}
-      <CampaignDialer batch={batch} />
+      <CampaignDialer batch={batch} initialSearch={initialSearch} />
 
       {/* KPI Performance Tiles */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '12px', marginBottom: '16px' }}>

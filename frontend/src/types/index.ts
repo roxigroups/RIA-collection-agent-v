@@ -70,6 +70,8 @@ export interface CallBatch {
   dialState: 'ready' | 'running' | 'paused' | 'done';
   queuedCalls: number;
   liveCalls: number;
+  customerNames?: string[];
+  phones?: string[];
   calls: CallItem[];
 }
 

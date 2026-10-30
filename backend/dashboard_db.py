@@ -396,7 +396,9 @@ class Dashboard(DatabaseDriver):
                 """
                 SELECT batch_id, COUNT(*) FILTER (WHERE status = 'queued') AS queued,
                     COUNT(*) FILTER (WHERE status IN ('dialing', 'live')) AS live,
-                    COUNT(*) FILTER (WHERE status = 'done') AS done
+                    COUNT(*) FILTER (WHERE status = 'done') AS done,
+                    array_agg(DISTINCT customer_name) FILTER (WHERE customer_name IS NOT NULL) AS customer_names,
+                    array_agg(DISTINCT phone) FILTER (WHERE phone IS NOT NULL) AS phones
                 FROM outbound_calls WHERE batch_id = ANY(%s) GROUP BY batch_id
                 """,
                 ([b["id"] for b in batches],),
@@ -415,6 +417,8 @@ class Dashboard(DatabaseDriver):
             "dialState": dial_state(b),
             "queuedCalls": (counts.get(b["id"]) or {}).get("queued", 0),
             "liveCalls": (counts.get(b["id"]) or {}).get("live", 0),
+            "customerNames": (counts.get(b["id"]) or {}).get("customer_names") or [],
+            "phones": (counts.get(b["id"]) or {}).get("phones") or [],
             "id": b["id"], "name": b["name"], "createdAt": when(b["created_at"]), "importedBy": b["imported_by_name"],
             "fileName": b["file_name"], "totalCalls": b["total_calls"], "completedCalls": b["completed_calls"],
             "connectedCalls": b["connected_calls"], "ptpCount": b["ptp_count"], "ptpAmount": float(b["ptp_amount"]),
