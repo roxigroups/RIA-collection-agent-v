@@ -5,10 +5,7 @@ import type { NextConfig } from "next";
 const BACKEND_URL = process.env.BACKEND_URL || "https://api.riaaiagent.cc";
 
 const nextConfig: NextConfig = {
-  /* config options here */
-  async rewrites() {
-    return [{ source: "/api/:path*", destination: `${BACKEND_URL}/api/:path*` }];
-  },
+  /* API routes are handled natively by src/app/api/[...path]/route.ts */
 };
 
 export default nextConfig;
