@@ -334,6 +334,50 @@ export interface Me {
   e: string;
   role: RoleKey;
   company?: string;
+  is_superadmin?: boolean;
+}
+
+export interface TelephonyNumber {
+  id: string;
+  phone_number: string;
+  label?: string;
+  status: 'active' | 'paused' | 'quarantined';
+  daily_limit: number;
+  calls_today: number;
+  active_calls?: number;
+  created_at?: string;
+}
+
+export interface AdminOverview {
+  total_tenants: number;
+  calls_today: number;
+  ptp_count_today: number;
+  ptp_amount_today: number;
+  connected_today: number;
+  active_numbers: number;
+  total_numbers: number;
+  dialer?: DialerStatus & { active_per_number?: Record<string, number> };
+  recent_activity: {
+    id: string;
+    customer_name: string;
+    phone: string;
+    outcome: string;
+    company: string;
+    amount: number;
+    created_at: string;
+  }[];
+}
+
+export interface AdminTenant {
+  id: string;
+  name: string;
+  created_at: string;
+  user_count: number;
+  calls_today: number;
+  ptp_amount_today: number;
+  admin_email: string;
+  admin_name: string;
+  config?: Record<string, any>;
 }
 
 export interface DialerStatus {
@@ -341,9 +385,12 @@ export interface DialerStatus {
   configured?: boolean;
   in_calling_hours?: boolean;
   calling_hours?: string;
+  concurrency?: number;
+  max_minutes?: number;
   active?: number;
   running?: boolean;
   error?: string;
+  active_per_number?: Record<string, number>;
 }
 
 // Everything GET /api/state returns (backend/dashboard_db.py Dashboard.state)

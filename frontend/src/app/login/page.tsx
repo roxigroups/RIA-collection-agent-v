@@ -110,13 +110,14 @@ type Mode = 'signin' | 'signup' | 'signup_otp' | 'forgot' | 'forgot_otp';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, showToast, isLoggedIn } = useApp();
+  const { login, showToast, isLoggedIn, meInfo } = useApp();
 
   const savedUser = useSyncExternalStore(noSubscribe, readRemembered, () => '');
   const [mode, setMode] = useState<Mode>('signin');
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [busy, setBusy] = useState(false);
+  const [showPortalChoice, setShowPortalChoice] = useState(false);
 
   // Sign In state
   const [typedUser, setUser] = useState<string | null>(null);
@@ -148,8 +149,21 @@ export default function LoginPage() {
   const [showConfirmNewPass, setShowConfirmNewPass] = useState(false);
 
   useEffect(() => {
-    if (isLoggedIn) router.replace('/dashboard');
-  }, [isLoggedIn, router]);
+    if (isLoggedIn && !showPortalChoice) {
+      const email = (meInfo?.e || user || '').trim().toLowerCase();
+      const isSuper = Boolean(meInfo?.is_superadmin) || [
+        'karnativikas1612@gmail.com',
+        'gyanvardhan186@gmail.com',
+        'superadmin@roxygroup.in',
+      ].includes(email);
+
+      if (isSuper) {
+        setShowPortalChoice(true);
+      } else {
+        router.replace('/dashboard');
+      }
+    }
+  }, [isLoggedIn, showPortalChoice, meInfo, user, router]);
 
   const switchMode = (newMode: Mode) => {
     setMode(newMode);
@@ -177,6 +191,17 @@ export default function LoginPage() {
       else localStorage.removeItem(REMEMBER_KEY);
     } catch {
       // storage blocked
+    }
+
+    const isSuperAdminEmail = [
+      'karnativikas1612@gmail.com',
+      'gyanvardhan186@gmail.com',
+      'superadmin@roxygroup.in',
+    ].includes(user.trim().toLowerCase());
+
+    if (isSuperAdminEmail) {
+      setShowPortalChoice(true);
+      return;
     }
     router.push('/dashboard');
   };
@@ -933,6 +958,47 @@ export default function LoginPage() {
           )}
         </div>
       </div>
+
+      {showPortalChoice && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '16px' }}>
+          <div className="card" style={{ maxWidth: '440px', width: '100%', padding: '28px', background: 'var(--surface)', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ fontSize: '36px' }}>🛡️</div>
+            <div>
+              <h3 style={{ margin: '0 0 6px', fontSize: '20px', fontWeight: 700 }}>Choose Your Portal</h3>
+              <p style={{ margin: 0, color: 'var(--muted)', fontSize: '13px' }}>
+                Signed in as Super Admin. Where would you like to start?
+              </p>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{ padding: '14px', fontSize: '14px', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                onClick={() => {
+                  setShowPortalChoice(false);
+                  router.push('/admin/dashboard');
+                }}
+              >
+                <span>🛡️</span> Open Admin Center
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline"
+                style={{ padding: '14px', fontSize: '14px', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                onClick={() => {
+                  setShowPortalChoice(false);
+                  router.push('/dashboard');
+                }}
+              >
+                <span>📞</span> Open Collections Workspace
+              </button>
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
+              You can toggle between both anytime using the top bar switcher.
+            </div>
+          </div>
+        </div>
+      )}
 
       <PrivacyPolicyModal
         isOpen={showPrivacyModal}

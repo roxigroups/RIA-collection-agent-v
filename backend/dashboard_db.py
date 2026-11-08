@@ -4,6 +4,7 @@
 Everything is scoped to one tenant (the signed-in user's company).
 """
 import hashlib
+import json
 import math
 import re
 import secrets
@@ -1144,3 +1145,280 @@ class Dashboard(DatabaseDriver):
                 f"UPDATE users SET {', '.join(f'{c} = %s' for c in sets)} WHERE tenant_id = %s AND id = %s",
                 (*sets.values(), tenant_id, user_id),
             )
+
+    # -- Platform Admin & Dynamic Telephony Numbers --------------------------------
+
+    DEFAULT_SUPERADMINS = frozenset((
+        "karnativikas1612@gmail.com",
+        "gyanvardhan186@gmail.com",
+        "superadmin@roxygroup.in",
+    ))
+
+    def is_superadmin(self, email: str | None) -> bool:
+        if not email:
+            return False
+        env_admins = {e.strip().lower() for e in os.getenv("SUPERADMIN_EMAILS", "").split(",") if e.strip()}
+        all_admins = self.DEFAULT_SUPERADMINS | env_admins
+        return email.strip().lower() in all_admins
+
+    def ensure_telephony_tables(self) -> None:
+        with self.connection() as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS telephony_numbers (
+                    id VARCHAR(50) PRIMARY KEY,
+                    phone_number VARCHAR(30) UNIQUE NOT NULL,
+                    label VARCHAR(100) DEFAULT '',
+                    status VARCHAR(20) NOT NULL DEFAULT 'active',
+                    daily_limit INT NOT NULL DEFAULT 250,
+                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE INDEX IF NOT EXISTS idx_telephony_status ON telephony_numbers (status);
+                ALTER TABLE outbound_calls ADD COLUMN IF NOT EXISTS caller_id VARCHAR(30);
+                CREATE INDEX IF NOT EXISTS idx_outbound_caller_id ON outbound_calls (caller_id, created_at);
+                """
+            )
+            # Seed default 5 Vobiz numbers if empty
+            count = conn.execute("SELECT COUNT(*) AS n FROM telephony_numbers").fetchone()["n"]
+            if count == 0:
+                conn.execute(
+                    """
+                    INSERT INTO telephony_numbers (id, phone_number, label, status, daily_limit)
+                    VALUES 
+                        ('num_8064269997', '+918064269997', 'Bangalore Line 1', 'active', 250),
+                        ('num_8064269994', '+918064269994', 'Bangalore Line 2', 'active', 250),
+                        ('num_8064269993', '+918064269993', 'Bangalore Line 3', 'active', 250),
+                        ('num_8064269991', '+918064269991', 'Bangalore Line 4', 'active', 250),
+                        ('num_8065382786', '+918065382786', 'Bangalore Line 5', 'active', 250)
+                    ON CONFLICT (phone_number) DO NOTHING;
+                    """
+                )
+
+    def get_telephony_numbers(self) -> list[dict]:
+        self.ensure_telephony_tables()
+        with self.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT tn.id, tn.phone_number, tn.label, tn.status, tn.daily_limit, tn.created_at,
+                    COALESCE(daily.calls_today, 0) AS calls_today
+                FROM telephony_numbers tn
+                LEFT JOIN (
+                    SELECT caller_id, COUNT(*) AS calls_today
+                    FROM outbound_calls
+                    WHERE created_at >= CURRENT_DATE
+                    GROUP BY caller_id
+                ) daily ON daily.caller_id = tn.phone_number
+                ORDER BY tn.created_at ASC
+                """
+            ).fetchall()
+        return [
+            {
+                "id": r["id"],
+                "phone_number": r["phone_number"],
+                "label": r["label"] or "",
+                "status": r["status"],
+                "daily_limit": int(r["daily_limit"] or 250),
+                "calls_today": int(r["calls_today"] or 0),
+                "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+            }
+            for r in rows
+        ]
+
+    def get_active_telephony_numbers(self) -> list[str]:
+        self.ensure_telephony_tables()
+        with self.connection() as conn:
+            rows = conn.execute(
+                "SELECT phone_number FROM telephony_numbers WHERE status = 'active' ORDER BY created_at ASC"
+            ).fetchall()
+        return [r["phone_number"] for r in rows]
+
+    def add_telephony_number(self, phone: str, label: str = "", daily_limit: int = 250) -> dict:
+        self.ensure_telephony_tables()
+        cleaned = re.sub(r"[^\d+]", "", phone.strip())
+        if not cleaned.startswith("+"):
+            cleaned = "+" + cleaned
+        digits = re.sub(r"\D", "", cleaned)
+        num_id = f"num_{digits[-10:]}"
+        with self.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO telephony_numbers (id, phone_number, label, status, daily_limit)
+                VALUES (%s, %s, %s, 'active', %s)
+                ON CONFLICT (phone_number) DO UPDATE SET status = 'active', label = EXCLUDED.label, daily_limit = EXCLUDED.daily_limit
+                """,
+                (num_id, cleaned, label.strip(), daily_limit),
+            )
+            row = conn.execute("SELECT * FROM telephony_numbers WHERE id = %s", (num_id,)).fetchone()
+        return {
+            "id": row["id"],
+            "phone_number": row["phone_number"],
+            "label": row["label"] or "",
+            "status": row["status"],
+            "daily_limit": row["daily_limit"],
+            "calls_today": 0,
+        }
+
+    def update_telephony_number(self, num_id: str, fields: dict) -> dict | None:
+        self.ensure_telephony_tables()
+        allowed = {"label", "status", "daily_limit"}
+        updates = {k: v for k, v in fields.items() if k in allowed}
+        if not updates:
+            return None
+        with self.connection() as conn:
+            sets = ", ".join(f"{k} = %s" for k in updates)
+            conn.execute(
+                f"UPDATE telephony_numbers SET {sets}, updated_at = CURRENT_TIMESTAMP WHERE id = %s",
+                (*updates.values(), num_id),
+            )
+            row = conn.execute("SELECT * FROM telephony_numbers WHERE id = %s", (num_id,)).fetchone()
+        return dict(row) if row else None
+
+    def delete_telephony_number(self, num_id: str) -> bool:
+        self.ensure_telephony_tables()
+        with self.connection() as conn:
+            conn.execute("DELETE FROM telephony_numbers WHERE id = %s", (num_id,))
+        return True
+
+    def get_admin_overview(self) -> dict:
+        self.ensure_telephony_tables()
+        with self.connection() as conn:
+            total_tenants = conn.execute("SELECT COUNT(*) AS n FROM tenants").fetchone()["n"]
+            calls_today = conn.execute(
+                "SELECT COUNT(*) AS n FROM outbound_calls WHERE created_at >= CURRENT_DATE"
+            ).fetchone()["n"]
+            ptp_today = conn.execute(
+                """
+                SELECT COUNT(*) AS n, COALESCE(SUM(promised_amount), 0) AS amt
+                FROM outbound_calls
+                WHERE created_at >= CURRENT_DATE AND outcome = 'PROMISE_TO_PAY'
+                """
+            ).fetchone()
+            connected_today = conn.execute(
+                "SELECT COUNT(*) AS n FROM outbound_calls WHERE created_at >= CURRENT_DATE AND answered_at IS NOT NULL"
+            ).fetchone()["n"]
+            active_numbers = conn.execute(
+                "SELECT COUNT(*) AS n FROM telephony_numbers WHERE status = 'active'"
+            ).fetchone()["n"]
+            total_numbers = conn.execute("SELECT COUNT(*) AS n FROM telephony_numbers").fetchone()["n"]
+            recent_activity = conn.execute(
+                """
+                SELECT o.id, o.customer_name, o.phone, o.outcome, o.created_at, t.name AS company, o.amount
+                FROM outbound_calls o
+                JOIN tenants t ON t.id = o.tenant_id
+                ORDER BY o.created_at DESC LIMIT 10
+                """
+            ).fetchall()
+
+        return {
+            "total_tenants": int(total_tenants),
+            "calls_today": int(calls_today),
+            "ptp_count_today": int(ptp_today["n"]),
+            "ptp_amount_today": float(ptp_today["amt"]),
+            "connected_today": int(connected_today),
+            "active_numbers": int(active_numbers),
+            "total_numbers": int(total_numbers),
+            "recent_activity": [
+                {
+                    "id": r["id"],
+                    "customer_name": r["customer_name"],
+                    "phone": r["phone"],
+                    "outcome": r["outcome"] or "QUEUED",
+                    "company": r["company"],
+                    "amount": float(r["amount"] or 0),
+                    "created_at": r["created_at"].isoformat() if r["created_at"] else "",
+                }
+                for r in recent_activity
+            ],
+        }
+
+    def get_admin_tenants(self) -> list[dict]:
+        with self.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT t.id, t.name, t.created_at, t.config,
+                    COALESCE(u.user_count, 0) AS user_count,
+                    COALESCE(c.calls_today, 0) AS calls_today,
+                    COALESCE(c.ptp_amount_today, 0) AS ptp_amount_today,
+                    admin.email AS admin_email, admin.name AS admin_name
+                FROM tenants t
+                LEFT JOIN (
+                    SELECT tenant_id, COUNT(*) AS user_count FROM users GROUP BY tenant_id
+                ) u ON u.tenant_id = t.id
+                LEFT JOIN (
+                    SELECT tenant_id, COUNT(*) AS calls_today,
+                        COALESCE(SUM(CASE WHEN outcome = 'PROMISE_TO_PAY' THEN promised_amount ELSE 0 END), 0) AS ptp_amount_today
+                    FROM outbound_calls
+                    WHERE created_at >= CURRENT_DATE
+                    GROUP BY tenant_id
+                ) c ON c.tenant_id = t.id
+                LEFT JOIN (
+                    SELECT DISTINCT ON (tenant_id) tenant_id, email, name
+                    FROM users
+                    WHERE role = 'OW' OR role = 'TA'
+                    ORDER BY tenant_id, created_at ASC
+                ) admin ON admin.tenant_id = t.id
+                ORDER BY t.created_at DESC
+                """
+            ).fetchall()
+        return [
+            {
+                "id": r["id"],
+                "name": r["name"],
+                "created_at": r["created_at"].isoformat() if r["created_at"] else "",
+                "user_count": int(r["user_count"]),
+                "calls_today": int(r["calls_today"]),
+                "ptp_amount_today": float(r["ptp_amount_today"]),
+                "admin_email": r["admin_email"] or "",
+                "admin_name": r["admin_name"] or "",
+                "config": r["config"] or {},
+            }
+            for r in rows
+        ]
+
+    def create_tenant_with_admin(self, company_name: str, admin_name: str, admin_email: str, password: str, rules: dict | None = None) -> dict:
+        tenant_id = f"TENANT-{secrets.token_hex(4).upper()}"
+        user_id = f"USR-{secrets.token_hex(4).upper()}"
+        default_config = {
+            "voice": {
+                "voice": "Ananya (Warm South Indian Professional)",
+                "speed": 1.02,
+                "pitch": 0.0,
+                "punct": True,
+                "noise": True,
+                "lang": (rules or {}).get("language", "Telugu")
+            },
+            "rules": {
+                "cap": int((rules or {}).get("daily_cap", 100)),
+                "starthour": "09:00",
+                "endhour": "19:00",
+                "cooldown_minutes": 5,
+                "ptpwindow_days": 7,
+                "escalate_broken_threshold": 2,
+                "blockdispute": True,
+                "blockholiday": True
+            },
+            "general": {
+                "tenant": company_name.strip(),
+                "audiodays": 90,
+                "auditdays": 365
+            }
+        }
+        with self.connection() as conn:
+            conn.execute(
+                "INSERT INTO tenants (id, name, config) VALUES (%s, %s, %s)",
+                (tenant_id, company_name.strip(), json.dumps(default_config)),
+            )
+            conn.execute(
+                """
+                INSERT INTO users (id, tenant_id, name, email, password_hash, role, status)
+                VALUES (%s, %s, %s, %s, crypt(%s, gen_salt('bf', 10)), 'OW', 'Active')
+                """,
+                (user_id, tenant_id, admin_name.strip(), admin_email.strip().lower(), password),
+            )
+        return {
+            "id": tenant_id,
+            "name": company_name.strip(),
+            "admin_email": admin_email.strip().lower(),
+            "admin_name": admin_name.strip(),
+        }

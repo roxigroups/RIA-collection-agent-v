@@ -69,6 +69,9 @@ interface AppContextType {
   login: (user: string, pass: string) => Promise<string | null>;
   logout: () => void;
   meInfo: Me | null;
+  isSuperAdmin: boolean;
+  portalMode: 'admin' | 'regular';
+  setPortalMode: (mode: 'admin' | 'regular') => void;
   selectedRetailerId: string;
   setSelectedRetailerId: (id: string) => void;
   selectedCallId: string;
@@ -145,8 +148,45 @@ const EMPTY_SUMMARY: RecoverySummaryData = { invoiced: 0, invoiceAccounts: 0, pr
 
 const AppContext = createContext<AppContextType | null>(null);
 
+export const SUPERADMIN_EMAILS = [
+  'karnativikas1612@gmail.com',
+  'gyanvardhan186@gmail.com',
+  'superadmin@roxygroup.in',
+];
+
+export const checkIsSuperAdmin = (user?: Me | null): boolean => {
+  if (!user) return false;
+  if (user.is_superadmin) return true;
+  const email = (user.e || '').trim().toLowerCase();
+  return SUPERADMIN_EMAILS.includes(email);
+};
+
+export const enrichUser = (user?: Me | null): Me | null => {
+  if (!user) return null;
+  return {
+    ...user,
+    is_superadmin: checkIsSuperAdmin(user),
+  };
+};
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [meInfo, setMeInfo] = useState<Me | null>(null);
+  const [portalMode, setPortalModeState] = useState<'admin' | 'regular'>(() => {
+    try {
+      return (localStorage.getItem('ria.portalMode') as 'admin' | 'regular') || 'regular';
+    } catch {
+      return 'regular';
+    }
+  });
+
+  const setPortalMode = useCallback((mode: 'admin' | 'regular') => {
+    setPortalModeState(mode);
+    try {
+      localStorage.setItem('ria.portalMode', mode);
+    } catch {}
+  }, []);
+
+  const isSuperAdmin = checkIsSuperAdmin(meInfo);
   const [viewState, setViewState] = useState<ViewState>('loading');
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [authChecked, setAuthChecked] = useState<boolean>(false);
@@ -204,7 +244,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     api<{ signed_in: boolean; user: Me | null }>('/session')
       .then((s) => {
         if (s.signed_in && s.user) {
-          setMeInfo(s.user);
+          const user = enrichUser(s.user);
+          setMeInfo(user);
           setIsLoggedIn(true);
         }
       })
@@ -248,7 +289,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const login = async (user: string, pass: string): Promise<string | null> => {
     try {
       const res = await api<{ user: Me }>('/login', { body: { email: user, password: pass } });
-      setMeInfo(res.user);
+      const enrichedUser = enrichUser(res.user);
+      setMeInfo(enrichedUser);
       setViewState('loading');
       setIsLoggedIn(true);
       showToast('Signed in successfully');
@@ -464,6 +506,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         login,
         logout,
         meInfo,
+        isSuperAdmin,
+        portalMode,
+        setPortalMode,
         selectedRetailerId,
         setSelectedRetailerId,
         selectedCallId,

@@ -65,7 +65,7 @@ UNANSWERED = ("NO-ANSWER", "BUSY")
 FIELD_NAMES = {"invoice_no": "invoice_number", "business": "business_name"}
 CALL_FIELDS = frozenset((
     "status", "outcome", "promised_date", "promised_amount", "notes", "language",
-    "answered_at", "ended_at", "phone", "scheduled_for",
+    "answered_at", "ended_at", "phone", "scheduled_for", "caller_id",
 ))
 
 

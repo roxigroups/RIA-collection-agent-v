@@ -31,20 +31,22 @@ export default function Header() {
   const userInitial = initials(me());
   const avatarBg = AV[role] || '#0F2350';
 
+  const isAdmin = pathname.startsWith('/admin');
+
   return (
     <header className="top">
-      <Link href="/dashboard" style={{ textDecoration: 'none', color: 'inherit' }}>
+      <Link href={isAdmin ? '/admin/dashboard' : '/dashboard'} style={{ textDecoration: 'none', color: 'inherit' }}>
         <div className="brand">
           <Image src="/logo-mark.png" alt="" width={75} height={26} loading="eager" />
           <div className="wm">
-            RIA<small>DISTRIBUTION INTELLIGENCE</small>
+            RIA<small>{isAdmin ? 'PLATFORM ADMIN' : 'DISTRIBUTION INTELLIGENCE'}</small>
           </div>
         </div>
       </Link>
 
       <div className="tenant">
-        <span className="dot" />
-        <span id="tenantName">{config.general.tenant || meInfo?.company || ''}</span>
+        <span className="dot" style={{ background: isAdmin ? '#22c55e' : undefined }} />
+        <span id="tenantName">{isAdmin ? 'Super Admin Command Center' : (config.general.tenant || meInfo?.company || '')}</span>
       </div>
 
       <div className="mobile-nav">
@@ -60,6 +62,22 @@ export default function Header() {
       <GlobalSearch />
 
       <div className="top-right">
+        {Boolean(meInfo?.is_superadmin) && (
+          <button
+            type="button"
+            className={`btn btn-sm ${pathname.startsWith('/admin') ? 'btn-outline' : 'btn-primary'}`}
+            style={{ fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            onClick={() => {
+              if (pathname.startsWith('/admin')) {
+                router.push('/dashboard');
+              } else {
+                router.push('/admin/dashboard');
+              }
+            }}
+          >
+            <span>{pathname.startsWith('/admin') ? '📞 Collections Workspace' : '🛡️ Admin Portal'}</span>
+          </button>
+        )}
         <div className="ctrl">
           <span>Role</span>
           <span style={{ fontWeight: 600 }}>{role} — {ROLES[role]?.n}</span>

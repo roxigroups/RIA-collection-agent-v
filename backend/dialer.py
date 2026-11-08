@@ -144,6 +144,7 @@ class Dialer:
         # Shown on the dashboard so a stopped or failing dialer isn't mistaken for "ready"
         self.running = False
         self.error = ""
+        self.active_per_number: dict[str, int] = {}
 
     def status(self) -> dict:
         start, end = calling_hours()
@@ -157,6 +158,7 @@ class Dialer:
             "active": len(self.active),
             "running": self.running,
             "error": self.error,
+            "active_per_number": dict(self.active_per_number),
         }
 
     def _save_heartbeat(self) -> None:
@@ -205,19 +207,44 @@ class Dialer:
             self._save_heartbeat()
             await lk.aclose()
 
-    async def _place_call(self, lk: api.LiveKitAPI, call: dict) -> None:
+    def _get_least_active_number(self) -> str | None:
         try:
-            await self._dial(lk, call)
+            if hasattr(self.db, "get_active_telephony_numbers"):
+                numbers = self.db.get_active_telephony_numbers()
+            else:
+                numbers = []
+        except Exception as exc:
+            logger.warning("Could not fetch active telephony numbers: %s", exc)
+            numbers = []
+
+        if not numbers:
+            raw = os.getenv("VOBIZ_PHONE_NUMBERS") or os.getenv("VOBIZ_PHONE_NUMBER") or ""
+            numbers = [n.strip() for n in raw.split(",") if n.strip()]
+
+        if not numbers:
+            return None
+
+        return min(numbers, key=lambda n: self.active_per_number.get(n, 0))
+
+    async def _place_call(self, lk: api.LiveKitAPI, call: dict) -> None:
+        selected_number = await asyncio.to_thread(self._get_least_active_number)
+        if selected_number:
+            self.active_per_number[selected_number] = self.active_per_number.get(selected_number, 0) + 1
+        try:
+            await self._dial(lk, call, selected_number)
         except Exception:
             # Don't leave the row stuck in dialing/live on the dashboard
             logger.exception("Call %s: dialer error", call["call_id"])
             await asyncio.to_thread(self.db.end_collection_call, call["call_id"])
+        finally:
+            if selected_number:
+                self.active_per_number[selected_number] = max(0, self.active_per_number.get(selected_number, 1) - 1)
 
-    async def _dial(self, lk: api.LiveKitAPI, call: dict) -> None:
+    async def _dial(self, lk: api.LiveKitAPI, call: dict, caller_id: str | None = None) -> None:
         call_id = call["call_id"]
         room = f"call-out-{call_id[:12]}"
-        logger.info("Calling %s %s for %s", call["customer_name"], call["phone"], call["invoice_no"])
-        request = api.CreateSIPParticipantRequest(
+        logger.info("Calling %s %s for %s (Caller ID: %s)", call["customer_name"], call["phone"], call["invoice_no"], caller_id or "default")
+        kwargs = dict(
             sip_trunk_id=self.trunk_id,
             sip_call_to=call["phone"],
             room_name=room,
@@ -228,10 +255,18 @@ class Dialer:
             krisp_enabled=os.getenv("NOISE_CANCELLATION", "off").strip("\"' ").lower() not in ("off", "0", "false", "none", ""),
             wait_until_answered=True,
         )
+        if caller_id:
+            kwargs["sip_number"] = caller_id
+        request = api.CreateSIPParticipantRequest(**kwargs)
         request.ringing_timeout.seconds = 30
         request.max_call_duration.seconds = self.max_minutes * 60
         try:
             await lk.sip.create_sip_participant(request)
+            if caller_id:
+                try:
+                    await asyncio.to_thread(self.db.save_collection_call, call_id, caller_id=caller_id)
+                except Exception:
+                    pass
         except Exception as exc:
             # The agent already joined the room; close it so RIA doesn't wait there
             await self._close_room(lk, room)

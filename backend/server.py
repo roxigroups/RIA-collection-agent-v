@@ -163,6 +163,7 @@ def get_session():
     user = current_user()
     return jsonify({"signed_in": bool(user), "user": {
         "id": user["id"], "n": user["name"], "e": user["email"], "role": user["role"], "company": user["company"],
+        "is_superadmin": DB.is_superadmin(user["email"]),
     } if user else None})
 
 
@@ -177,6 +178,7 @@ def login():
     session["user_id"] = user["id"]
     return jsonify({"signed_in": True, "user": {
         "id": user["id"], "n": user["name"], "e": user["email"], "role": user["role"], "company": user["company"],
+        "is_superadmin": DB.is_superadmin(user["email"]),
     }})
 
 
@@ -509,6 +511,149 @@ def update_user(user_id: str):
     DB.update_user(acting_user["tenant_id"], user_id, changes)
     audit("update_user", "user", user_id, {k: v for k, v in changes.items() if k != "password"})
     return jsonify({"ok": True})
+
+
+# -- Super Admin Endpoints ----------------------------------------------------
+
+def superadmin_only(view):
+    @functools.wraps(view)
+    def inner(*args, **kwargs):
+        user = current_user()
+        if not user:
+            return jsonify({"error": "Sign in first"}), 401
+        if not DB.is_superadmin(user["email"]):
+            return jsonify({"error": "Platform superadmin access required"}), 403
+        g.user = user
+        return view(*args, **kwargs)
+    return inner
+
+
+def _sync_livekit_trunk():
+    """Background helper to sync active numbers with LiveKit SIP Outbound Trunk if configured."""
+    trunk_id = os.getenv("LIVEKIT_SIP_OUTBOUND_TRUNK_ID", "").strip()
+    if not trunk_id or not os.getenv("LIVEKIT_URL"):
+        return
+
+    def _worker():
+        try:
+            from livekit import api as lk_api
+            active_numbers = DB.get_active_telephony_numbers()
+            async def _run():
+                lk = lk_api.LiveKitAPI()
+                try:
+                    trunks = (await lk.sip.list_outbound_trunk(lk_api.ListSIPOutboundTrunkRequest())).items
+                    found = next((t for t in trunks if t.sip_trunk_id == trunk_id), None)
+                    if found:
+                        found.numbers = active_numbers
+                        await lk.sip.update_outbound_trunk(found.sip_trunk_id, found)
+                        logger.info("Synced LiveKit trunk %s with %d numbers", trunk_id, len(active_numbers))
+                finally:
+                    await lk.aclose()
+            asyncio.run(_run())
+        except Exception as exc:
+            logger.warning("Could not sync LiveKit trunk numbers: %s", exc)
+
+    threading.Thread(target=_worker, name="sync-livekit-trunk", daemon=True).start()
+
+
+@app.get("/api/admin/overview")
+@superadmin_only
+def admin_overview():
+    data = DB.get_admin_overview()
+    data["dialer"] = dialer.status()
+    return jsonify(data)
+
+
+@app.get("/api/admin/numbers")
+@superadmin_only
+def admin_get_numbers():
+    numbers = DB.get_telephony_numbers()
+    active_per_number = dialer.active_per_number
+    for n in numbers:
+        n["active_calls"] = active_per_number.get(n["phone_number"], 0)
+    return jsonify({"numbers": numbers})
+
+
+@app.post("/api/admin/numbers")
+@superadmin_only
+def admin_add_number():
+    data = body()
+    phone = str(data.get("phone_number", "")).strip()
+    label = str(data.get("label", "")).strip()
+    daily_limit = int(data.get("daily_limit") or 250)
+    if not phone or len(phone) < 10:
+        return jsonify({"error": "Valid phone number in E.164 format (e.g. +918064269997) is required"}), 400
+    try:
+        record = DB.add_telephony_number(phone, label=label, daily_limit=daily_limit)
+        _sync_livekit_trunk()
+        return jsonify({"success": True, "number": record})
+    except Exception as exc:
+        logger.exception("Failed to add telephony number")
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.patch("/api/admin/numbers/<num_id>")
+@superadmin_only
+def admin_update_number(num_id: str):
+    data = body()
+    try:
+        updated = DB.update_telephony_number(num_id, data)
+        if not updated:
+            return jsonify({"error": "Number not found"}), 404
+        _sync_livekit_trunk()
+        return jsonify({"success": True, "number": updated})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.delete("/api/admin/numbers/<num_id>")
+@superadmin_only
+def admin_delete_number(num_id: str):
+    try:
+        DB.delete_telephony_number(num_id)
+        _sync_livekit_trunk()
+        return jsonify({"success": True})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.get("/api/admin/tenants")
+@superadmin_only
+def admin_get_tenants():
+    tenants = DB.get_admin_tenants()
+    return jsonify({"tenants": tenants})
+
+
+@app.post("/api/admin/tenants")
+@superadmin_only
+def admin_create_tenant():
+    data = body()
+    name = str(data.get("name", "")).strip()
+    admin_name = str(data.get("admin_name", "")).strip()
+    admin_email = str(data.get("admin_email", "")).strip()
+    password = str(data.get("password", "")).strip()
+    rules = data.get("rules") or {}
+    if not name or not admin_email or not password:
+        return jsonify({"error": "Company name, admin email, and password are required"}), 400
+    if not _is_valid_email(admin_email):
+        return jsonify({"error": "Enter a valid email address"}), 400
+    if not _is_valid_password(password):
+        return jsonify({"error": "Password must be at least 8 characters with a letter and a number"}), 400
+    if DB.email_exists(admin_email):
+        return jsonify({"error": "A user with this email already exists"}), 409
+    try:
+        tenant = DB.create_tenant_with_admin(name, admin_name or name, admin_email, password, rules=rules)
+        return jsonify({"success": True, "tenant": tenant})
+    except Exception as exc:
+        logger.exception("Failed to create tenant")
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.get("/api/admin/team")
+@superadmin_only
+def admin_get_team():
+    emails = sorted(list(DB.DEFAULT_SUPERADMINS | {e.strip().lower() for e in os.getenv("SUPERADMIN_EMAILS", "").split(",") if e.strip()}))
+    return jsonify({"admins": emails})
 
 
 def start_dialer() -> None:
