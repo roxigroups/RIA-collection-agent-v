@@ -638,3 +638,76 @@ class DatabaseDriver:
                 return val
         except Exception:
             return None
+
+    # -- dynamic telephony numbers pool --------------------------------------------
+
+    def ensure_telephony_tables(self) -> None:
+        """Ensures telephony_numbers table and caller_id column exist, seeded with default lines."""
+        with self.connection() as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS telephony_numbers (
+                    id VARCHAR(50) PRIMARY KEY,
+                    phone_number VARCHAR(30) UNIQUE NOT NULL,
+                    label VARCHAR(100) DEFAULT '',
+                    status VARCHAR(20) DEFAULT 'active',
+                    daily_limit INT DEFAULT 250,
+                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE INDEX IF NOT EXISTS idx_telephony_status ON telephony_numbers (status);
+                ALTER TABLE outbound_calls ADD COLUMN IF NOT EXISTS caller_id VARCHAR(30);
+                CREATE INDEX IF NOT EXISTS idx_outbound_caller_id ON outbound_calls (caller_id, created_at);
+                """
+            )
+            # Seed default 5 Vobiz numbers if empty
+            count = conn.execute("SELECT COUNT(*) AS n FROM telephony_numbers").fetchone()["n"]
+            if count == 0:
+                conn.execute(
+                    """
+                    INSERT INTO telephony_numbers (id, phone_number, label, status, daily_limit)
+                    VALUES 
+                        ('num_8064269997', '+918064269997', 'Bangalore Line 1', 'active', 250),
+                        ('num_8064269994', '+918064269994', 'Bangalore Line 2', 'active', 250),
+                        ('num_8064269993', '+918064269993', 'Bangalore Line 3', 'active', 250),
+                        ('num_8064269991', '+918064269991', 'Bangalore Line 4', 'active', 250),
+                        ('num_8065382786', '+918065382786', 'Bangalore Line 5', 'active', 250)
+                    ON CONFLICT (phone_number) DO NOTHING;
+                    """
+                )
+
+    def get_active_telephony_numbers(self) -> list[str]:
+        """Returns list of active phone number strings."""
+        self.ensure_telephony_tables()
+        with self.connection() as conn:
+            rows = conn.execute(
+                "SELECT phone_number FROM telephony_numbers WHERE status = 'active' ORDER BY created_at ASC"
+            ).fetchall()
+        return [r["phone_number"] for r in rows]
+
+    def get_active_telephony_pool(self) -> list[dict]:
+        """Returns active numbers with their calls today and daily limits."""
+        self.ensure_telephony_tables()
+        with self.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT tn.phone_number, tn.daily_limit, COALESCE(daily.calls_today, 0) AS calls_today
+                FROM telephony_numbers tn
+                LEFT JOIN (
+                    SELECT caller_id, COUNT(*) AS calls_today
+                    FROM outbound_calls
+                    WHERE created_at >= CURRENT_DATE
+                    GROUP BY caller_id
+                ) daily ON daily.caller_id = tn.phone_number
+                WHERE tn.status = 'active'
+                ORDER BY tn.created_at ASC
+                """
+            ).fetchall()
+        return [
+            {
+                "phone_number": r["phone_number"],
+                "daily_limit": int(r["daily_limit"] or 250),
+                "calls_today": int(r["calls_today"] or 0),
+            }
+            for r in rows
+        ]

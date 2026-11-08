@@ -172,6 +172,8 @@ class Dialer:
             logger.warning("LIVEKIT_SIP_OUTBOUND_TRUNK_ID is missing; run setup_vobiz.py. Not dialing.")
             return
         await asyncio.to_thread(self.db.recover_stale_calls, self.max_minutes)
+        if hasattr(self.db, "ensure_telephony_tables"):
+            await asyncio.to_thread(self.db.ensure_telephony_tables)
         lk = api.LiveKitAPI()
         self.running = True
         self._save_heartbeat()
@@ -209,17 +211,37 @@ class Dialer:
 
     def _get_least_active_number(self) -> str | None:
         try:
-            if hasattr(self.db, "get_active_telephony_numbers"):
+            if hasattr(self.db, "get_active_telephony_pool"):
+                pool = self.db.get_active_telephony_pool()
+                if pool:
+                    # Exclude numbers that reached or exceeded their daily safety limit
+                    available = [p for p in pool if p.get("calls_today", 0) < p.get("daily_limit", 250)]
+                    if not available:
+                        # Fallback to full active pool if all hit the cap
+                        available = pool
+                    # Balanced rotation: pick number with lowest concurrent calls, then lowest calls today
+                    available.sort(key=lambda p: (
+                        self.active_per_number.get(p["phone_number"], 0),
+                        p.get("calls_today", 0),
+                    ))
+                    selected = available[0]["phone_number"]
+                    logger.info(
+                        "Selected telephony line %s (active: %d, calls today: %d)",
+                        selected,
+                        self.active_per_number.get(selected, 0),
+                        available[0].get("calls_today", 0),
+                    )
+                    return selected
+            elif hasattr(self.db, "get_active_telephony_numbers"):
                 numbers = self.db.get_active_telephony_numbers()
-            else:
-                numbers = []
+                if numbers:
+                    return min(numbers, key=lambda n: self.active_per_number.get(n, 0))
         except Exception as exc:
-            logger.warning("Could not fetch active telephony numbers: %s", exc)
-            numbers = []
+            logger.warning("Could not fetch active telephony numbers from db: %s", exc)
 
-        if not numbers:
-            raw = os.getenv("VOBIZ_PHONE_NUMBERS") or os.getenv("VOBIZ_PHONE_NUMBER") or ""
-            numbers = [n.strip() for n in raw.split(",") if n.strip()]
+        # Fallback to .env only if database returned no numbers
+        raw = os.getenv("VOBIZ_PHONE_NUMBERS") or os.getenv("VOBIZ_PHONE_NUMBER") or ""
+        numbers = [n.strip() for n in raw.split(",") if n.strip()]
 
         if not numbers:
             return None
@@ -227,15 +249,20 @@ class Dialer:
         return min(numbers, key=lambda n: self.active_per_number.get(n, 0))
 
     async def _place_call(self, lk: api.LiveKitAPI, call: dict) -> None:
+        call_id = call["call_id"]
         selected_number = await asyncio.to_thread(self._get_least_active_number)
         if selected_number:
             self.active_per_number[selected_number] = self.active_per_number.get(selected_number, 0) + 1
+            try:
+                await asyncio.to_thread(self.db.save_collection_call, call_id, caller_id=selected_number)
+            except Exception:
+                pass
         try:
             await self._dial(lk, call, selected_number)
         except Exception:
             # Don't leave the row stuck in dialing/live on the dashboard
-            logger.exception("Call %s: dialer error", call["call_id"])
-            await asyncio.to_thread(self.db.end_collection_call, call["call_id"])
+            logger.exception("Call %s: dialer error", call_id)
+            await asyncio.to_thread(self.db.end_collection_call, call_id)
         finally:
             if selected_number:
                 self.active_per_number[selected_number] = max(0, self.active_per_number.get(selected_number, 1) - 1)
