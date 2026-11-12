@@ -59,6 +59,8 @@ export default function WalletPage() {
   const [errorMsg, setErrorMsg] = useState('');
   const [showRedeemModal, setShowRedeemModal] = useState(false);
   const [couponCode, setCouponCode] = useState('');
+  const [showCustomModal, setShowCustomModal] = useState(false);
+  const [customModalInput, setCustomModalInput] = useState<string>('1500');
   const rechargeSectionRef = useRef<HTMLDivElement>(null);
 
   // Strict Admin Guard: Superadmins and Technical Admins do NOT have payment pages
@@ -91,11 +93,14 @@ export default function WalletPage() {
   }
 
   const activeAmount = isCustom ? Math.max(100, parseInt(customInput || '0', 10) || 0) : selectedAmount;
+  const customModalAmount = Math.max(100, parseInt(customModalInput || '0', 10) || 0);
   const balanceInr = wallet?.balance_inr ?? meInfo?.wallet_balance_inr ?? 0;
 
-  const handleTopup = async () => {
+  const handleTopup = async (overrideAmount?: number) => {
     setErrorMsg('');
-    if (activeAmount < 100) {
+    const targetAmount = overrideAmount !== undefined ? overrideAmount : activeAmount;
+
+    if (targetAmount < 100) {
       setErrorMsg('Minimum top-up amount is ₹100.');
       showToast('Minimum top-up amount is ₹100.');
       return;
@@ -116,7 +121,7 @@ export default function WalletPage() {
         currency: string;
         key_id: string;
       }>('/billing/topup/order', {
-        body: { amount_inr: activeAmount },
+        body: { amount_inr: targetAmount },
       });
 
       const keyId =
@@ -129,7 +134,7 @@ export default function WalletPage() {
         amount: orderRes.amount,
         currency: orderRes.currency || 'INR',
         name: 'RIA Collection Agent',
-        description: `Wallet Recharge — ₹${activeAmount.toLocaleString('en-IN')}`,
+        description: `Wallet Recharge — ₹${targetAmount.toLocaleString('en-IN')}`,
         image: '/logo-mark.png',
         order_id: orderRes.order_id,
         prefill: {
@@ -165,7 +170,8 @@ export default function WalletPage() {
             });
 
             if (verifyRes.success) {
-              showToast(`₹${activeAmount.toLocaleString('en-IN')} added to your wallet!`);
+              showToast(`₹${targetAmount.toLocaleString('en-IN')} added to your wallet!`);
+              setShowCustomModal(false);
               await fetchWallet();
               await refresh();
             } else {
@@ -354,12 +360,11 @@ export default function WalletPage() {
                 </div>
               </div>
 
-              {/* Bottom Buttons: Primary Blue + Secondary Outline */}
+              {/* Bottom Buttons: Left button triggers Custom Amount Modal, Right triggers Redeem Modal */}
               <div style={{ display: 'flex', gap: '12px', marginTop: '32px' }}>
                 <button
                   type="button"
-                  onClick={handleTopup}
-                  disabled={isPaying}
+                  onClick={() => setShowCustomModal(true)}
                   style={{
                     flex: 1,
                     height: '42px',
@@ -369,7 +374,7 @@ export default function WalletPage() {
                     borderRadius: '8px',
                     fontSize: '13.5px',
                     fontWeight: 600,
-                    cursor: isPaying ? 'wait' : 'pointer',
+                    cursor: 'pointer',
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -378,7 +383,7 @@ export default function WalletPage() {
                   }}
                 >
                   <span>+</span>
-                  <span>{isPaying ? 'Opening…' : 'Recharge wallet'}</span>
+                  <span>Recharge wallet</span>
                 </button>
 
                 <button
@@ -512,7 +517,7 @@ export default function WalletPage() {
                   })}
                 </div>
 
-                {/* Custom Amount Toggle */}
+                {/* Custom Amount Option */}
                 <div style={{ marginBottom: '20px' }}>
                   {!isCustom ? (
                     <button
@@ -584,7 +589,7 @@ export default function WalletPage() {
               <div>
                 <button
                   type="button"
-                  onClick={handleTopup}
+                  onClick={() => handleTopup(activeAmount)}
                   disabled={isPaying || activeAmount < 100}
                   style={{
                     width: '100%',
@@ -707,13 +712,192 @@ export default function WalletPage() {
         )}
       </div>
 
-      {/* Redeem Code Simple Modal */}
+      {/* Custom Recharge Freedom Modal: Launched by "+ Recharge wallet" */}
+      {showCustomModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 35, 80, 0.45)',
+            backdropFilter: 'blur(3px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+          }}
+        >
+          <div
+            style={{
+              background: '#FFFFFF',
+              borderRadius: '16px',
+              padding: '28px',
+              maxWidth: '440px',
+              width: '92%',
+              boxShadow: '0 20px 40px rgba(15, 35, 80, 0.18)',
+              border: '1px solid #E2E8F0',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: '#0F2350' }}>
+                  Recharge Calling Wallet
+                </h3>
+                <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748B' }}>
+                  Enter any custom credit amount to add to your balance.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCustomModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '20px',
+                  color: '#64748B',
+                  cursor: 'pointer',
+                  padding: '2px 6px',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ margin: '20px 0 14px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Recharge Amount (INR)
+              </label>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  background: '#F8FAFC',
+                  border: '2px solid #1E52C9',
+                  borderRadius: '10px',
+                  padding: '4px 14px',
+                }}
+              >
+                <span style={{ fontSize: '24px', fontWeight: 800, color: '#0F2350', marginRight: '6px' }}>₹</span>
+                <input
+                  type="number"
+                  min="100"
+                  step="50"
+                  value={customModalInput}
+                  onChange={(e) => setCustomModalInput(e.target.value)}
+                  placeholder="e.g. 1500"
+                  autoFocus
+                  style={{
+                    width: '100%',
+                    height: '46px',
+                    border: 'none',
+                    background: 'transparent',
+                    fontSize: '24px',
+                    fontWeight: 800,
+                    color: '#0F2350',
+                    outline: 'none',
+                    fontFamily: 'var(--mono, monospace)',
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Quick Amount Suggestion Chips */}
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
+              {[500, 1000, 2000, 5000].map((amt) => (
+                <button
+                  key={amt}
+                  type="button"
+                  onClick={() => setCustomModalInput(String(amt))}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '20px',
+                    background: customModalAmount === amt ? '#EFF6FF' : '#F1F5F9',
+                    border: `1px solid ${customModalAmount === amt ? '#1E52C9' : '#E2E8F0'}`,
+                    color: customModalAmount === amt ? '#1E52C9' : '#475569',
+                    fontSize: '12.5px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  ₹{amt.toLocaleString('en-IN')}
+                </button>
+              ))}
+            </div>
+
+            {/* Calculation / Rate Notice */}
+            <div
+              style={{
+                padding: '12px',
+                borderRadius: '8px',
+                background: '#F8FAFC',
+                border: '1px solid #E2E8F0',
+                fontSize: '12.5px',
+                color: '#334155',
+                marginBottom: '24px',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <span style={{ color: '#64748B' }}>Estimated talk time:</span>
+                <strong style={{ color: '#0F2350' }}>≈ {Math.floor(customModalAmount / 3)} minutes</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', color: '#64748B' }}>
+                <span>Rate: ₹3.00/min (5 paise/sec)</span>
+                <span>Ringing is 100% free</span>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setShowCustomModal(false)}
+                style={{
+                  flex: 1,
+                  height: '44px',
+                  borderRadius: '8px',
+                  border: '1px solid #CBD5E1',
+                  background: '#FFFFFF',
+                  color: '#475569',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleTopup(customModalAmount)}
+                disabled={isPaying || customModalAmount < 100}
+                style={{
+                  flex: 2,
+                  height: '44px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: '#1E52C9',
+                  color: '#FFFFFF',
+                  fontSize: '14px',
+                  fontWeight: 700,
+                  cursor: isPaying ? 'wait' : 'pointer',
+                  boxShadow: '0 2px 8px rgba(30, 82, 201, 0.25)',
+                }}
+              >
+                {isPaying ? 'Opening Payment…' : `Recharge ₹${customModalAmount.toLocaleString('en-IN')}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Redeem Code Modal */}
       {showRedeemModal && (
         <div
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(15, 35, 80, 0.4)',
+            background: 'rgba(15, 35, 80, 0.45)',
+            backdropFilter: 'blur(3px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
