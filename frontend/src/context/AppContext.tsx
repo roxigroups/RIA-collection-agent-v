@@ -126,6 +126,7 @@ interface AppContextType {
   dialer: DialerStatus;
   lastSync: Date | null;
   refresh: () => Promise<void>;
+  walletBalance: number;
   toast: string | null;
   showToast: (msg: string) => void;
   modal: ModalState;
@@ -560,6 +561,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         dialer: data?.dialer || {},
         lastSync,
         refresh,
+        walletBalance: meInfo?.wallet_balance_inr ?? 0,
         toast,
         showToast,
         modal,

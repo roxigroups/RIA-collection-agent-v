@@ -192,6 +192,10 @@ class Dialer:
                             rules = (call.get("tenant_config") or {}).get("rules")
                             if not within_calling_hours(rules):
                                 continue
+                            tenant_id = call.get("tenant_id")
+                            if tenant_id and not await asyncio.to_thread(self.db.tenant_has_calling_credits, tenant_id):
+                                logger.warning("Tenant %s has insufficient calling credits; skipping call %s", tenant_id, call["call_id"])
+                                continue
                             if await asyncio.to_thread(self.db.claim_call, call["call_id"]):
                                 task = asyncio.create_task(self._place_call(lk, call))
                                 self.active.add(task)

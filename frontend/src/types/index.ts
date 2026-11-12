@@ -19,6 +19,7 @@ export type ScreenKey =
   | 'tickets'
   | 'contacts'
   | 'reports'
+  | 'billing'
   | 'support';
 
 export type ViewState = 'normal' | 'loading' | 'empty' | 'error' | 'offline';
@@ -337,6 +338,44 @@ export interface Me {
   is_superadmin?: boolean;
   billing_status?: string;
   plan?: string;
+  wallet_balance_inr?: number;
+  wallet_balance_paise?: number;
+}
+
+export interface WalletLedgerItem {
+  id: string;
+  type: string;
+  amount_paise: number;
+  amount_inr: number;
+  balance_after_paise: number;
+  balance_after_inr: number;
+  description: string;
+  created_at: string;
+}
+
+export interface BillingTransactionItem {
+  id: string;
+  type: string;
+  plan?: string | null;
+  amount_paise: number;
+  amount_inr: number;
+  currency: string;
+  status: string;
+  order_id?: string;
+  payment_id?: string;
+  created_at: string;
+}
+
+export interface WalletDetailsResponse {
+  tenant_id: string;
+  balance_paise: number;
+  balance_inr: number;
+  rate_per_minute_inr: number;
+  plan: string;
+  billing_status: string;
+  platform_fee_paid_at?: string | null;
+  ledger: WalletLedgerItem[];
+  transactions: BillingTransactionItem[];
 }
 
 export interface TelephonyNumber {

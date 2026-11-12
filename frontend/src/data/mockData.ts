@@ -27,6 +27,7 @@ export const PERM: Record<string, Record<RoleKey, PermissionLevel>> = {
   tickets:     { OW: 'F', CM: 'F', CE: 'F', AC: 'F', PA: 'V', TA: 'F' },
   contacts:    { OW: 'F', CM: 'F', CE: 'F', AC: 'F', PA: 'V', TA: 'F' },
   reports:     { OW: 'F', CM: 'F', CE: 'V', AC: 'F', PA: 'V', TA: 'F' },
+  billing:     { OW: 'F', CM: 'F', CE: 'V', AC: 'F', PA: 'V', TA: 'F' },
   support:     { OW: 'F', CM: 'F', CE: 'F', AC: 'F', PA: 'F', TA: 'F' },
 };
 
@@ -38,6 +39,7 @@ export const NAV: NavItem[] = [
   { k: 'tickets', t: 'Tickets', ic: '⚑', scr: 'SCR-11' },
   { k: 'contacts', t: 'Contacts', ic: '📇', scr: 'SCR-16' },
   { k: 'reports', t: 'Reports', ic: '📊', scr: 'SCR-18' },
+  { k: 'billing', t: 'Billing & Credits', ic: '💳', scr: 'SCR-20' },
   { k: 'support', t: 'Support', ic: '✉', scr: 'SCR-19' },
 ];
 
@@ -51,6 +53,7 @@ export const TITLES: Record<string, [string, string, string]> = {
   tickets: ['SCR-11', 'Tickets', 'Everything RIA could not, or should not, handle alone.'],
   contacts: ['SCR-16', 'Contacts', 'All customer accounts and retailers added across all campaigns so far.'],
   reports: ['SCR-18', 'Reports', 'Ready-made CSV reports of calls, payment commitments, disputes, missed calls and activity.'],
+  billing: ['SCR-20', 'Billing & Calling Credits', 'Manage calling credits balance, top up talk time, and review per-call billing history.'],
   support: ['SCR-19', 'Support', 'Questions or problems with RIA? Contact our team.'],
 };
 

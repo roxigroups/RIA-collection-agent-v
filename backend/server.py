@@ -162,11 +162,14 @@ def health():
 @app.get("/api/session")
 def get_session():
     user = current_user()
+    wallet = DB.get_tenant_billing(user["tenant_id"]) if user and user.get("tenant_id") else {}
     return jsonify({"signed_in": bool(user), "user": {
         "id": user["id"], "n": user["name"], "e": user["email"], "role": user["role"], "company": user["company"],
         "is_superadmin": DB.is_superadmin(user["email"]),
         "billing_status": user.get("billing_status") or "active",
         "plan": user.get("plan") or "starter",
+        "wallet_balance_inr": wallet.get("balance_inr", 0.0),
+        "wallet_balance_paise": wallet.get("balance_paise", 0),
     } if user else None})
 
 
@@ -179,11 +182,14 @@ def login():
         return jsonify({"error": "Wrong email or password"}), 401
     session.clear()
     session["user_id"] = user["id"]
+    wallet = DB.get_tenant_billing(user["tenant_id"]) if user.get("tenant_id") else {}
     return jsonify({"signed_in": True, "user": {
         "id": user["id"], "n": user["name"], "e": user["email"], "role": user["role"], "company": user["company"],
         "is_superadmin": DB.is_superadmin(user["email"]),
         "billing_status": user.get("billing_status") or "active",
         "plan": user.get("plan") or "starter",
+        "wallet_balance_inr": wallet.get("balance_inr", 0.0),
+        "wallet_balance_paise": wallet.get("balance_paise", 0),
     }})
 
 
@@ -322,6 +328,16 @@ def forgot_password_confirm():
 def state():
     data = DB.state(g.user["tenant_id"], g.user)
     data["dialer"] = get_dialer_status()
+    try:
+        billing = DB.get_tenant_billing(g.user["tenant_id"])
+        if "me" in data and isinstance(data["me"], dict):
+            data["me"]["billing_status"] = billing.get("billing_status", "active")
+            data["me"]["plan"] = billing.get("plan", "starter")
+            data["me"]["wallet_balance_inr"] = billing.get("balance_inr", 0.0)
+            data["me"]["wallet_balance_paise"] = billing.get("balance_paise", 0)
+        data["wallet"] = billing
+    except Exception as exc:
+        logger.warning("Could not append billing to state: %s", exc)
     return jsonify(data)
 
 
@@ -791,6 +807,133 @@ def verify_payment():
     except Exception as exc:
         logger.exception("Failed to activate workspace after payment verification: %s", exc)
         return jsonify({"error": f"Failed to activate workspace: {str(exc)}"}), 500
+
+
+@app.get("/api/billing/wallet")
+def billing_wallet():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
+    billing = DB.get_tenant_billing(user["tenant_id"])
+    ledger = DB.get_wallet_ledger(user["tenant_id"], limit=50)
+    transactions = DB.get_billing_transactions(user["tenant_id"], limit=20)
+    return jsonify({
+        "tenant_id": user["tenant_id"],
+        "balance_paise": billing.get("balance_paise", 0),
+        "balance_inr": billing.get("balance_inr", 0.0),
+        "rate_per_minute_inr": 3.0,
+        "plan": billing.get("plan", "starter"),
+        "billing_status": billing.get("billing_status", "active"),
+        "platform_fee_paid_at": billing.get("platform_fee_paid_at"),
+        "ledger": ledger,
+        "transactions": transactions,
+    })
+
+
+@app.post("/api/billing/topup/order")
+def topup_order():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    data = body()
+    amount_inr = data.get("amount_inr")
+    amount_paise = data.get("amount_paise")
+    if amount_inr is not None:
+        try:
+            amount_paise = int(round(float(amount_inr) * 100))
+        except (ValueError, TypeError):
+            return jsonify({"error": "Invalid amount"}), 400
+    elif amount_paise is not None:
+        try:
+            amount_paise = int(amount_paise)
+        except (ValueError, TypeError):
+            return jsonify({"error": "Invalid amount"}), 400
+    else:
+        return jsonify({"error": "Missing amount_inr or amount_paise"}), 400
+
+    if amount_paise < 10000:  # Minimum ₹100
+        return jsonify({"error": "Minimum top-up amount is ₹100"}), 400
+
+    key_id = os.getenv("RAZORPAY_KEY_ID", "").strip()
+    key_secret = os.getenv("RAZORPAY_KEY_SECRET", "").strip()
+    if not key_id or not key_secret:
+        return jsonify({"error": "Razorpay credentials not configured on server"}), 500
+
+    receipt = f"top_{user['tenant_id'][:8]}_{secrets.token_hex(4)}"
+    try:
+        import razorpay
+        client = razorpay.Client(auth=(key_id, key_secret))
+        order_params = {
+            "amount": amount_paise,
+            "currency": "INR",
+            "receipt": receipt,
+            "notes": {
+                "type": "wallet_topup",
+                "tenant_id": user["tenant_id"],
+                "user_id": user["id"],
+                "company": user.get("company", ""),
+            },
+        }
+        order = client.order.create(data=order_params)
+        order_id = order["id"]
+        DB.record_topup_order(user["tenant_id"], amount_paise, order_id)
+        return jsonify({
+            "order_id": order_id,
+            "amount": amount_paise,
+            "currency": "INR",
+            "key_id": key_id,
+        })
+    except Exception as exc:
+        logger.exception("Failed to create Razorpay top-up order: %s", exc)
+        return jsonify({"error": f"Failed to create order: {str(exc)}"}), 500
+
+
+@app.post("/api/billing/topup/verify")
+def topup_verify():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    data = body()
+    order_id = str(data.get("razorpay_order_id") or data.get("order_id", "")).strip()
+    payment_id = str(data.get("razorpay_payment_id") or data.get("payment_id", "")).strip()
+    signature = str(data.get("razorpay_signature") or data.get("signature", "")).strip()
+    amount_paise = data.get("amount")
+    try:
+        amount_paise = int(amount_paise) if amount_paise is not None else 0
+    except (ValueError, TypeError):
+        amount_paise = 0
+
+    if not order_id or not payment_id or not signature:
+        return jsonify({"error": "Missing razorpay_order_id, razorpay_payment_id, or razorpay_signature"}), 400
+
+    key_secret = os.getenv("RAZORPAY_KEY_SECRET", "").strip()
+    if not key_secret:
+        return jsonify({"error": "Razorpay secret not configured on server"}), 500
+
+    msg = f"{order_id}|{payment_id}".encode("utf-8")
+    expected_signature = hmac.new(key_secret.encode("utf-8"), msg, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected_signature, signature):
+        logger.warning("Topup signature mismatch for order %s: expected %s, got %s", order_id, expected_signature, signature)
+        return jsonify({"error": "Payment signature verification failed. Unauthorized signature."}), 400
+
+    try:
+        result = DB.verify_and_topup_wallet(
+            tenant_id=user["tenant_id"],
+            amount_paise=amount_paise,
+            order_id=order_id,
+            payment_id=payment_id,
+            signature=signature,
+        )
+        return jsonify({
+            "success": True,
+            "message": f"Successfully recharged ₹{result['balance_inr']:.2f} calling credits!",
+            "data": result,
+        })
+    except Exception as exc:
+        logger.exception("Failed to top up wallet after payment verification: %s", exc)
+        return jsonify({"error": f"Failed to top up wallet: {str(exc)}"}), 500
 
 
 def start_dialer() -> None:

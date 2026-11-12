@@ -13,7 +13,7 @@ import GlobalSearch from './GlobalSearch';
 export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
-  const { role, perm, me, meInfo, config, logout } = useApp();
+  const { role, perm, me, meInfo, config, logout, walletBalance } = useApp();
 
   const activeKey = pathname.startsWith('/calls/')
     ? 'calls'
@@ -62,6 +62,45 @@ export default function Header() {
       <GlobalSearch />
 
       <div className="top-right">
+        {!isAdmin && (
+          <Link
+            href="/billing"
+            className="wallet-credit-badge"
+            title={`Calling Credits: ₹${walletBalance.toFixed(2)} — ₹3.00/min talk rate. Click to manage & recharge.`}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '5px 12px',
+              borderRadius: '20px',
+              background: walletBalance < 50 ? '#FFFBEB' : '#ECFDF5',
+              border: `1px solid ${walletBalance < 50 ? '#FDE68A' : '#A7F3D0'}`,
+              color: walletBalance < 50 ? '#B45309' : '#065F46',
+              fontWeight: 700,
+              fontSize: '13px',
+              textDecoration: 'none',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <span style={{ fontSize: '14px' }}>🪙</span>
+            <span>₹{walletBalance.toFixed(2)}</span>
+            <span
+              style={{
+                fontSize: '10px',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                padding: '1px 5px',
+                borderRadius: '8px',
+                background: walletBalance < 50 ? '#FDE68A' : '#D1FAE5',
+                color: walletBalance < 50 ? '#92400E' : '#047857',
+              }}
+            >
+              Credits
+            </span>
+          </Link>
+        )}
         {Boolean(meInfo?.is_superadmin) && (
           <button
             type="button"

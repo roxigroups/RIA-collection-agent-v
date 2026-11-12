@@ -415,6 +415,31 @@ class DatabaseDriver:
             if o["batch_id"]:
                 self._update_batch(conn, o["batch_id"])
 
+            # Deduct calling credits: exactly ₹3.00/min (5 paise/sec) for spoken time only.
+            # Ringing time is NOT counted; unanswered calls (BUSY, NO-ANSWER, FAILED) cost ₹0.
+            if answered and seconds > 0 and o.get("tenant_id"):
+                cost_paise = int(seconds * 5)
+                w_row = conn.execute(
+                    """
+                    UPDATE tenant_wallets
+                    SET balance_paise = GREATEST(0, balance_paise - %s), updated_at = CURRENT_TIMESTAMP
+                    WHERE tenant_id = %s
+                    RETURNING balance_paise
+                    """,
+                    (cost_paise, o["tenant_id"]),
+                ).fetchone()
+                balance_after = int(w_row["balance_paise"]) if w_row and w_row.get("balance_paise") is not None else 0
+                ledger_id = f"led_{secrets.token_hex(8)}"
+                cust_desc = o.get("customer_name") or o.get("phone") or "Customer"
+                desc = f"Call to {cust_desc} ({duration_display(seconds)} @ ₹3/min)"
+                conn.execute(
+                    """
+                    INSERT INTO wallet_ledger (id, tenant_id, type, amount_paise, balance_after_paise, description)
+                    VALUES (%s, %s, 'call_burn', %s, %s, %s)
+                    """,
+                    (ledger_id, o["tenant_id"], -cost_paise, balance_after, desc),
+                )
+
     @staticmethod
     def _retailer_disposition(conn, o: dict, label: str, outcome: str) -> str:
         if outcome not in UNANSWERED:
@@ -732,6 +757,11 @@ class DatabaseDriver:
                     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
                 );
 
+                -- Initialize default ₹300 welcome credits (30,000 paise) for any active tenants lacking a wallet entry
+                INSERT INTO tenant_wallets (tenant_id, balance_paise, updated_at)
+                SELECT id, 30000, CURRENT_TIMESTAMP FROM tenants
+                ON CONFLICT (tenant_id) DO NOTHING;
+
                 CREATE TABLE IF NOT EXISTS billing_transactions (
                     id VARCHAR(50) PRIMARY KEY,
                     tenant_id VARCHAR(50) NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -849,3 +879,135 @@ class DatabaseDriver:
             "plan": plan_id,
             "balance_inr": balance_after / 100.0,
         }
+
+    def tenant_has_calling_credits(self, tenant_id: str, min_paise: int = 150) -> bool:
+        """Returns True if tenant has at least min_paise (default 150 paise = ₹1.50 = 30 seconds talk time)."""
+        try:
+            self.ensure_billing_tables()
+            with self.connection() as conn:
+                row = conn.execute(
+                    "SELECT balance_paise FROM tenant_wallets WHERE tenant_id = %s",
+                    (tenant_id,),
+                ).fetchone()
+                if not row or row.get("balance_paise") is None:
+                    return False
+                return int(row["balance_paise"]) >= min_paise
+        except Exception:
+            return True
+
+    def record_topup_order(self, tenant_id: str, amount_paise: int, razorpay_order_id: str) -> str:
+        self.ensure_billing_tables()
+        tx_id = f"top_{secrets.token_hex(8)}"
+        with self.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO billing_transactions (id, tenant_id, type, plan, amount_paise, currency, status, razorpay_order_id)
+                VALUES (%s, %s, 'wallet_topup', NULL, %s, 'INR', 'created', %s)
+                """,
+                (tx_id, tenant_id, amount_paise, razorpay_order_id),
+            )
+        return tx_id
+
+    def verify_and_topup_wallet(
+        self, tenant_id: str, amount_paise: int, order_id: str, payment_id: str, signature: str
+    ) -> dict:
+        self.ensure_billing_tables()
+        with self.connection() as conn:
+            with conn.transaction():
+                # 1. Update billing transaction
+                conn.execute(
+                    """
+                    UPDATE billing_transactions
+                    SET status = 'captured', razorpay_payment_id = %s, razorpay_signature = %s
+                    WHERE razorpay_order_id = %s
+                    """,
+                    (payment_id, signature, order_id),
+                )
+                # 2. Add credits to wallet
+                conn.execute(
+                    """
+                    INSERT INTO tenant_wallets (tenant_id, balance_paise, updated_at)
+                    VALUES (%s, %s, CURRENT_TIMESTAMP)
+                    ON CONFLICT (tenant_id) DO UPDATE
+                    SET balance_paise = tenant_wallets.balance_paise + %s, updated_at = CURRENT_TIMESTAMP
+                    """,
+                    (tenant_id, amount_paise, amount_paise),
+                )
+                # 3. Fetch new balance
+                w_row = conn.execute(
+                    "SELECT balance_paise FROM tenant_wallets WHERE tenant_id = %s",
+                    (tenant_id,),
+                ).fetchone()
+                balance_after = int(w_row["balance_paise"]) if w_row else amount_paise
+
+                # 4. Record ledger entry
+                ledger_id = f"led_{secrets.token_hex(8)}"
+                conn.execute(
+                    """
+                    INSERT INTO wallet_ledger (id, tenant_id, type, amount_paise, balance_after_paise, description)
+                    VALUES (%s, %s, 'topup', %s, %s, %s)
+                    """,
+                    (ledger_id, tenant_id, amount_paise, balance_after, f"Wallet top-up (₹{amount_paise / 100.0:.2f})"),
+                )
+
+        return {
+            "success": True,
+            "balance_paise": balance_after,
+            "balance_inr": balance_after / 100.0,
+        }
+
+    def get_wallet_ledger(self, tenant_id: str, limit: int = 50) -> list[dict]:
+        self.ensure_billing_tables()
+        with self.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, type, amount_paise, balance_after_paise, description, created_at
+                FROM wallet_ledger
+                WHERE tenant_id = %s
+                ORDER BY created_at DESC
+                LIMIT %s
+                """,
+                (tenant_id, limit),
+            ).fetchall()
+            return [
+                {
+                    "id": r["id"],
+                    "type": r["type"],
+                    "amount_paise": int(r["amount_paise"]),
+                    "amount_inr": r["amount_paise"] / 100.0,
+                    "balance_after_paise": int(r["balance_after_paise"]),
+                    "balance_after_inr": r["balance_after_paise"] / 100.0,
+                    "description": r["description"] or "",
+                    "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                }
+                for r in rows
+            ]
+
+    def get_billing_transactions(self, tenant_id: str, limit: int = 20) -> list[dict]:
+        self.ensure_billing_tables()
+        with self.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, type, plan, amount_paise, currency, status, razorpay_order_id, razorpay_payment_id, created_at
+                FROM billing_transactions
+                WHERE tenant_id = %s
+                ORDER BY created_at DESC
+                LIMIT %s
+                """,
+                (tenant_id, limit),
+            ).fetchall()
+            return [
+                {
+                    "id": r["id"],
+                    "type": r["type"],
+                    "plan": r["plan"],
+                    "amount_paise": int(r["amount_paise"]),
+                    "amount_inr": r["amount_paise"] / 100.0,
+                    "currency": r["currency"] or "INR",
+                    "status": r["status"],
+                    "order_id": r["razorpay_order_id"],
+                    "payment_id": r["razorpay_payment_id"],
+                    "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                }
+                for r in rows
+            ]
