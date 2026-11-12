@@ -127,7 +127,7 @@ export default function WalletPage() {
       const keyId =
         orderRes.key_id ||
         process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ||
-        'rzp_test_TzFI10AZU8WRbV';
+        '';
 
       const options = {
         key: keyId,
