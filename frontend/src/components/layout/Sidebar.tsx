@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSyncExternalStore } from 'react';
-import { useApp } from '@/context/AppContext';
+import { useApp, checkIsSuperAdmin } from '@/context/AppContext';
 import { NAV } from '@/data/mockData';
 
 // Hidden or shown, the Workspace menu stays that way on this browser across pages and reloads
@@ -43,9 +43,10 @@ const ADMIN_NAV = [
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { perm, ptps, scheduledCallbacks, escalations, meInfo, role } = useApp();
+  const { perm, ptps, scheduledCallbacks, escalations, meInfo, role, isSuperAdmin } = useApp();
   const collapsed = useSyncExternalStore(subscribe, readCollapsed, () => false);
   const isAdminPath = pathname.startsWith('/admin');
+  const isAdminAccount = Boolean(isSuperAdmin || meInfo?.is_superadmin || checkIsSuperAdmin(meInfo));
 
   // Live counts: promises due today, callbacks waiting, open tickets
   const badges: Record<string, number> = {
@@ -119,7 +120,7 @@ export default function Sidebar() {
                 </Link>
               );
             })}
-            {Boolean(meInfo?.is_superadmin) && (
+            {isAdminAccount && (
               <>
                 <div style={{ margin: '14px 10px', borderTop: '1px solid var(--border)' }} />
                 <Link

@@ -4,7 +4,7 @@ import { useSyncExternalStore } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useApp } from '@/context/AppContext';
+import { useApp, checkIsSuperAdmin } from '@/context/AppContext';
 import { ROLES, NAV, AV } from '@/data/mockData';
 import { initials } from '@/utils/formatters';
 import { isDarkTheme, setDarkTheme, subscribeTheme } from '@/lib/theme';
@@ -13,7 +13,7 @@ import GlobalSearch from './GlobalSearch';
 export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
-  const { role, perm, me, meInfo, config, logout } = useApp();
+  const { role, perm, me, meInfo, config, logout, isSuperAdmin } = useApp();
 
   const activeKey = pathname.startsWith('/calls/')
     ? 'calls'
@@ -32,6 +32,7 @@ export default function Header() {
   const avatarBg = AV[role] || '#0F2350';
 
   const isAdmin = pathname.startsWith('/admin');
+  const isAdminAccount = Boolean(isSuperAdmin || meInfo?.is_superadmin || checkIsSuperAdmin(meInfo));
 
   return (
     <header className="top">
@@ -62,21 +63,81 @@ export default function Header() {
       <GlobalSearch />
 
       <div className="top-right">
-        {Boolean(meInfo?.is_superadmin) && (
-          <button
-            type="button"
-            className={`btn btn-sm ${pathname.startsWith('/admin') ? 'btn-outline' : 'btn-primary'}`}
-            style={{ fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-            onClick={() => {
-              if (pathname.startsWith('/admin')) {
-                router.push('/dashboard');
-              } else {
-                router.push('/admin/dashboard');
-              }
+        {isAdminAccount && (
+          <div
+            className="workspace-toggle"
+            role="group"
+            aria-label="Workspace Switcher"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              backgroundColor: dark ? 'rgba(255, 255, 255, 0.08)' : '#EBF0F7',
+              border: dark ? '1px solid rgba(255, 255, 255, 0.12)' : '1px solid #CBD5E1',
+              padding: '3px',
+              borderRadius: '9999px',
+              userSelect: 'none',
+              gap: '2px',
             }}
           >
-            <span>{pathname.startsWith('/admin') ? '📞 Collections Workspace' : '🛡️ Admin Portal'}</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (isAdmin) router.push('/dashboard');
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '4px 12px',
+                borderRadius: '9999px',
+                border: 'none',
+                cursor: !isAdmin ? 'default' : 'pointer',
+                fontSize: '11.5px',
+                fontWeight: !isAdmin ? 700 : 500,
+                color: !isAdmin
+                  ? '#FFFFFF'
+                  : dark
+                  ? 'rgba(255, 255, 255, 0.7)'
+                  : '#475569',
+                backgroundColor: !isAdmin ? '#1E52C9' : 'transparent',
+                boxShadow: !isAdmin ? '0 1px 3px rgba(30, 82, 201, 0.35)' : 'none',
+                transition: 'all 0.16s ease-in-out',
+              }}
+              title="Switch to Retailer Collections Workspace"
+            >
+              <span style={{ fontSize: '12px' }}>📞</span>
+              <span>Collections</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!isAdmin) router.push('/admin/dashboard');
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '4px 12px',
+                borderRadius: '9999px',
+                border: 'none',
+                cursor: isAdmin ? 'default' : 'pointer',
+                fontSize: '11.5px',
+                fontWeight: isAdmin ? 700 : 500,
+                color: isAdmin
+                  ? '#FFFFFF'
+                  : dark
+                  ? 'rgba(255, 255, 255, 0.7)'
+                  : '#475569',
+                backgroundColor: isAdmin ? '#1E52C9' : 'transparent',
+                boxShadow: isAdmin ? '0 1px 3px rgba(30, 82, 201, 0.35)' : 'none',
+                transition: 'all 0.16s ease-in-out',
+              }}
+              title="Switch to Admin Panel"
+            >
+              <span style={{ fontSize: '12px' }}>🛡️</span>
+              <span>Admin Panel</span>
+            </button>
+          </div>
         )}
         <div className="ctrl">
           <span>Role</span>

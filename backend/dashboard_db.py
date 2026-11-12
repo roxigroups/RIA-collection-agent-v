@@ -274,7 +274,13 @@ class Dashboard(DatabaseDriver):
             queue = self._queue(conn, tenant_id)
             nolift = self._nolift(queue)
             return {
-                "me": {"id": user["id"], "n": user["name"], "e": user["email"], "role": user["role"]},
+                "me": {
+                    "id": user["id"],
+                    "n": user["name"],
+                    "e": user["email"],
+                    "role": user["role"],
+                    "is_superadmin": self.is_superadmin(user.get("email")),
+                },
                 "retailers": self._retailers(conn, tenant_id),
                 "calls": calls,
                 "batches": self._batches(conn, tenant_id, calls),

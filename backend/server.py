@@ -335,6 +335,7 @@ def state():
             data["me"]["plan"] = billing.get("plan", "starter")
             data["me"]["wallet_balance_inr"] = billing.get("balance_inr", 0.0)
             data["me"]["wallet_balance_paise"] = billing.get("balance_paise", 0)
+            data["me"]["is_superadmin"] = DB.is_superadmin(g.user.get("email"))
         data["wallet"] = billing
     except Exception as exc:
         logger.warning("Could not append billing to state: %s", exc)

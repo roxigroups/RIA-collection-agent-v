@@ -226,7 +226,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const state = await api<AppState>('/state');
       setData(state);
       setLastSync(new Date());
-      setMeInfo((prev) => ({ ...state.me, company: state.config.general.tenant || prev?.company }));
+      setMeInfo((prev) => enrichUser({ ...state.me, company: state.config.general.tenant || prev?.company }));
       setViewState('normal');
       loaded.current = true;
     } catch (err) {
