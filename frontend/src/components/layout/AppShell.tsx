@@ -18,15 +18,19 @@ interface AppShellProps {
 }
 
 export default function AppShell({ screenKey, children }: AppShellProps) {
-  const { viewState, perm, isLoggedIn, authChecked } = useApp();
+  const { viewState, perm, isLoggedIn, authChecked, meInfo, isSuperAdmin } = useApp();
   const router = useRouter();
   const permission = perm(screenKey);
 
   useEffect(() => {
-    if (authChecked && !isLoggedIn) router.replace('/login');
-  }, [authChecked, isLoggedIn, router]);
+    if (authChecked && !isLoggedIn) {
+      router.replace('/login');
+    } else if (authChecked && isLoggedIn && !isSuperAdmin && meInfo?.billing_status === 'pending_platform_fee') {
+      router.replace('/onboarding/activate');
+    }
+  }, [authChecked, isLoggedIn, isSuperAdmin, meInfo, router]);
 
-  if (!isLoggedIn) {
+  if (!isLoggedIn || (!isSuperAdmin && meInfo?.billing_status === 'pending_platform_fee')) {
     return null;
   }
 

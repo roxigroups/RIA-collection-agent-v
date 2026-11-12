@@ -335,6 +335,8 @@ export interface Me {
   role: RoleKey;
   company?: string;
   is_superadmin?: boolean;
+  billing_status?: string;
+  plan?: string;
 }
 
 export interface TelephonyNumber {

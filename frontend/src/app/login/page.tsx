@@ -180,7 +180,7 @@ export default function LoginPage() {
     }
     setBusy(true);
     setError('');
-    const problem = await login(user.trim(), pass);
+    const { error: problem, user: loggedInUser } = await login(user.trim(), pass);
     setBusy(false);
     if (problem) {
       setError(problem);
@@ -197,12 +197,18 @@ export default function LoginPage() {
       'karnativikas1612@gmail.com',
       'gyanvardhan186@gmail.com',
       'superadmin@roxygroup.in',
-    ].includes(user.trim().toLowerCase());
+    ].includes(user.trim().toLowerCase()) || Boolean(loggedInUser?.is_superadmin);
 
     if (isSuperAdminEmail) {
       setShowPortalChoice(true);
       return;
     }
+
+    if (loggedInUser?.billing_status === 'pending_platform_fee') {
+      router.push('/onboarding/activate');
+      return;
+    }
+
     router.push('/dashboard');
   };
 
@@ -265,10 +271,10 @@ export default function LoginPage() {
           code: signupOtp.trim(),
         },
       });
-      showToast('Workspace activated! Signing in...');
+      showToast('Account created! Choose your platform plan...');
       // Sign in automatically with the confirmed credentials
       await login(signupEmail.trim(), signupPass);
-      router.push('/dashboard');
+      router.push('/onboarding/activate');
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : 'Invalid code.';
       setError(msg);

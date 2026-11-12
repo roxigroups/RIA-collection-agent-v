@@ -8,6 +8,7 @@ permission table (PERM below, same as frontend/src/data/mockData.ts).
 import asyncio
 import functools
 import hashlib
+import hmac
 import logging
 import os
 import re
@@ -164,6 +165,8 @@ def get_session():
     return jsonify({"signed_in": bool(user), "user": {
         "id": user["id"], "n": user["name"], "e": user["email"], "role": user["role"], "company": user["company"],
         "is_superadmin": DB.is_superadmin(user["email"]),
+        "billing_status": user.get("billing_status") or "active",
+        "plan": user.get("plan") or "starter",
     } if user else None})
 
 
@@ -179,6 +182,8 @@ def login():
     return jsonify({"signed_in": True, "user": {
         "id": user["id"], "n": user["name"], "e": user["email"], "role": user["role"], "company": user["company"],
         "is_superadmin": DB.is_superadmin(user["email"]),
+        "billing_status": user.get("billing_status") or "active",
+        "plan": user.get("plan") or "starter",
     }})
 
 
@@ -260,6 +265,9 @@ def register_confirm():
             "e": user["email"],
             "role": user["role"],
             "company": user["company"],
+            "is_superadmin": DB.is_superadmin(user["email"]),
+            "billing_status": user.get("billing_status") or "pending_platform_fee",
+            "plan": user.get("plan") or "starter",
         }
     })
 
@@ -654,6 +662,135 @@ def admin_create_tenant():
 def admin_get_team():
     emails = sorted(list(DB.DEFAULT_SUPERADMINS | {e.strip().lower() for e in os.getenv("SUPERADMIN_EMAILS", "").split(",") if e.strip()}))
     return jsonify({"admins": emails})
+
+
+# -- razorpay billing & platform activation -----------------------------------
+
+PLAN_PRICES = {
+    "starter": 499900,  # ₹4,999 in paise
+    "pro": 799900,      # ₹7,999 in paise
+}
+
+
+@app.get("/api/billing/status")
+def billing_status():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
+    status = DB.get_tenant_billing(user["tenant_id"])
+    return jsonify({
+        "tenant_id": user["tenant_id"],
+        "is_superadmin": DB.is_superadmin(user["email"]),
+        **status,
+    })
+
+
+@app.post("/api/create-order")
+@app.post("/api/billing/create-order")
+def create_order():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    data = body()
+    plan_id = str(data.get("plan_id", "starter")).lower().strip()
+    if plan_id not in PLAN_PRICES and "amount" not in data:
+        return jsonify({"error": f"Invalid plan '{plan_id}'. Choose 'starter' or 'pro'"}), 400
+
+    amount_paise = data.get("amount")
+    if amount_paise is not None:
+        try:
+            amount_paise = int(amount_paise)
+        except (ValueError, TypeError):
+            return jsonify({"error": "Invalid amount"}), 400
+    else:
+        amount_paise = PLAN_PRICES.get(plan_id, 499900)
+
+    if amount_paise < 100:
+        return jsonify({"error": "Amount must be at least 100 paise (₹1.00)"}), 400
+
+    key_id = os.getenv("RAZORPAY_KEY_ID", "").strip()
+    key_secret = os.getenv("RAZORPAY_KEY_SECRET", "").strip()
+    if not key_id or not key_secret:
+        return jsonify({"error": "Razorpay credentials not configured on server"}), 500
+
+    receipt = f"rcpt_{user['tenant_id']}_{secrets.token_hex(4)}"
+    try:
+        import razorpay
+        client = razorpay.Client(auth=(key_id, key_secret))
+        order_params = {
+            "amount": amount_paise,
+            "currency": "INR",
+            "receipt": receipt,
+            "notes": {
+                "tenant_id": user["tenant_id"],
+                "user_id": user["id"],
+                "plan_id": plan_id,
+                "company": user.get("company", ""),
+            },
+        }
+        order = client.order.create(data=order_params)
+        order_id = order["id"]
+        DB.record_billing_order(user["tenant_id"], plan_id, amount_paise, order_id)
+        return jsonify({
+            "order_id": order_id,
+            "amount": amount_paise,
+            "currency": "INR",
+            "key_id": key_id,
+            "plan_id": plan_id,
+        })
+    except Exception as exc:
+        logger.exception("Failed to create Razorpay order: %s", exc)
+        return jsonify({"error": f"Failed to create order: {str(exc)}"}), 500
+
+
+@app.post("/api/verify-payment")
+@app.post("/api/billing/verify-payment")
+def verify_payment():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    data = body()
+    order_id = str(data.get("razorpay_order_id") or data.get("order_id", "")).strip()
+    payment_id = str(data.get("razorpay_payment_id") or data.get("payment_id", "")).strip()
+    signature = str(data.get("razorpay_signature") or data.get("signature", "")).strip()
+    plan_id = str(data.get("plan_id", "starter")).lower().strip()
+    amount_paise = int(data.get("amount", PLAN_PRICES.get(plan_id, 499900)))
+
+    if not order_id or not payment_id or not signature:
+        return jsonify({"error": "Missing razorpay_order_id, razorpay_payment_id, or razorpay_signature"}), 400
+
+    key_secret = os.getenv("RAZORPAY_KEY_SECRET", "").strip()
+    if not key_secret:
+        return jsonify({"error": "Razorpay secret not configured on server"}), 500
+
+    # Algorithm: HMAC-SHA256(order_id + "|" + payment_id, KEY_SECRET)
+    msg = f"{order_id}|{payment_id}".encode("utf-8")
+    expected_signature = hmac.new(key_secret.encode("utf-8"), msg, hashlib.sha256).hexdigest()
+
+    if not hmac.compare_digest(expected_signature, signature):
+        logger.warning("Signature mismatch for order %s: expected %s, got %s", order_id, expected_signature, signature)
+        return jsonify({"error": "Payment signature verification failed. Unauthorized signature."}), 400
+
+    try:
+        result = DB.verify_and_activate_platform(
+            tenant_id=user["tenant_id"],
+            plan_id=plan_id,
+            amount_paise=amount_paise,
+            order_id=order_id,
+            payment_id=payment_id,
+            signature=signature,
+            welcome_bonus_paise=30000,  # ₹300.00 calling credits
+        )
+        return jsonify({
+            "success": True,
+            "message": "Payment verified! Workspace activated and ₹300 welcome credits added.",
+            "data": result,
+        })
+    except Exception as exc:
+        logger.exception("Failed to activate workspace after payment verification: %s", exc)
+        return jsonify({"error": f"Failed to activate workspace: {str(exc)}"}), 500
 
 
 def start_dialer() -> None:

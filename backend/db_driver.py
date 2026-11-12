@@ -711,3 +711,141 @@ class DatabaseDriver:
             }
             for r in rows
         ]
+
+    # -- billing, plans, and wallet credits ----------------------------------------
+
+    def ensure_billing_tables(self) -> None:
+        """Ensures billing status, plans, wallet balances, and transaction logs exist."""
+        with self.connection() as conn:
+            conn.execute(
+                """
+                ALTER TABLE tenants ADD COLUMN IF NOT EXISTS billing_status VARCHAR(30) DEFAULT 'pending_platform_fee';
+                ALTER TABLE tenants ADD COLUMN IF NOT EXISTS plan VARCHAR(30) DEFAULT 'starter';
+                ALTER TABLE tenants ADD COLUMN IF NOT EXISTS platform_fee_paid_at TIMESTAMPTZ;
+
+                -- Ensure existing tenants already in database prior to migration remain active
+                UPDATE tenants SET billing_status = 'active' WHERE billing_status IS NULL;
+
+                CREATE TABLE IF NOT EXISTS tenant_wallets (
+                    tenant_id VARCHAR(50) PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+                    balance_paise BIGINT DEFAULT 0 CHECK (balance_paise >= 0),
+                    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS billing_transactions (
+                    id VARCHAR(50) PRIMARY KEY,
+                    tenant_id VARCHAR(50) NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                    type VARCHAR(30) NOT NULL,
+                    plan VARCHAR(30),
+                    amount_paise BIGINT NOT NULL,
+                    currency VARCHAR(10) DEFAULT 'INR',
+                    status VARCHAR(20) NOT NULL,
+                    razorpay_order_id VARCHAR(100),
+                    razorpay_payment_id VARCHAR(100),
+                    razorpay_signature VARCHAR(200),
+                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE INDEX IF NOT EXISTS idx_billing_tenant ON billing_transactions(tenant_id, created_at);
+                CREATE INDEX IF NOT EXISTS idx_billing_order ON billing_transactions(razorpay_order_id);
+
+                CREATE TABLE IF NOT EXISTS wallet_ledger (
+                    id VARCHAR(50) PRIMARY KEY,
+                    tenant_id VARCHAR(50) NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                    type VARCHAR(30) NOT NULL,
+                    amount_paise BIGINT NOT NULL,
+                    balance_after_paise BIGINT NOT NULL,
+                    description VARCHAR(255) DEFAULT '',
+                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE INDEX IF NOT EXISTS idx_wallet_ledger_tenant ON wallet_ledger(tenant_id, created_at);
+                """
+            )
+
+    def get_tenant_billing(self, tenant_id: str) -> dict:
+        self.ensure_billing_tables()
+        with self.connection() as conn:
+            tenant = conn.execute(
+                "SELECT billing_status, plan, platform_fee_paid_at FROM tenants WHERE id = %s",
+                (tenant_id,),
+            ).fetchone()
+            wallet = conn.execute(
+                "SELECT balance_paise FROM tenant_wallets WHERE tenant_id = %s",
+                (tenant_id,),
+            ).fetchone()
+            balance_paise = int(wallet["balance_paise"]) if wallet and wallet.get("balance_paise") is not None else 0
+            return {
+                "billing_status": tenant["billing_status"] if tenant and tenant.get("billing_status") else "active",
+                "plan": tenant["plan"] if tenant and tenant.get("plan") else "starter",
+                "platform_fee_paid_at": tenant["platform_fee_paid_at"].isoformat() if tenant and tenant.get("platform_fee_paid_at") else None,
+                "balance_paise": balance_paise,
+                "balance_inr": balance_paise / 100.0,
+            }
+
+    def record_billing_order(self, tenant_id: str, plan_id: str, amount_paise: int, razorpay_order_id: str) -> str:
+        self.ensure_billing_tables()
+        tx_id = f"txn_{secrets.token_hex(8)}"
+        with self.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO billing_transactions (id, tenant_id, type, plan, amount_paise, currency, status, razorpay_order_id)
+                VALUES (%s, %s, 'platform_fee', %s, %s, 'INR', 'created', %s)
+                """,
+                (tx_id, tenant_id, plan_id, amount_paise, razorpay_order_id),
+            )
+        return tx_id
+
+    def verify_and_activate_platform(
+        self, tenant_id: str, plan_id: str, amount_paise: int, order_id: str,
+        payment_id: str, signature: str, welcome_bonus_paise: int = 30000
+    ) -> dict:
+        self.ensure_billing_tables()
+        with self.connection() as conn:
+            with conn.transaction():
+                # 1. Update billing transaction to captured
+                conn.execute(
+                    """
+                    UPDATE billing_transactions
+                    SET status = 'captured', razorpay_payment_id = %s, razorpay_signature = %s
+                    WHERE razorpay_order_id = %s
+                    """,
+                    (payment_id, signature, order_id),
+                )
+                # 2. Activate tenant and assign plan
+                conn.execute(
+                    """
+                    UPDATE tenants
+                    SET billing_status = 'active', plan = %s, platform_fee_paid_at = CURRENT_TIMESTAMP
+                    WHERE id = %s
+                    """,
+                    (plan_id, tenant_id),
+                )
+                # 3. Credit wallet balance with welcome credits (default ₹300 = 30,000 paise)
+                conn.execute(
+                    """
+                    INSERT INTO tenant_wallets (tenant_id, balance_paise, updated_at)
+                    VALUES (%s, %s, CURRENT_TIMESTAMP)
+                    ON CONFLICT (tenant_id) DO UPDATE
+                    SET balance_paise = tenant_wallets.balance_paise + %s, updated_at = CURRENT_TIMESTAMP
+                    """,
+                    (tenant_id, welcome_bonus_paise, welcome_bonus_paise),
+                )
+                # Fetch new balance
+                w_row = conn.execute("SELECT balance_paise FROM tenant_wallets WHERE tenant_id = %s", (tenant_id,)).fetchone()
+                balance_after = int(w_row["balance_paise"]) if w_row else welcome_bonus_paise
+
+                # 4. Record ledger entry
+                ledger_id = f"led_{secrets.token_hex(8)}"
+                conn.execute(
+                    """
+                    INSERT INTO wallet_ledger (id, tenant_id, type, amount_paise, balance_after_paise, description)
+                    VALUES (%s, %s, 'welcome_bonus', %s, %s, 'Welcome bonus calling credits (₹300)')
+                    """,
+                    (ledger_id, tenant_id, welcome_bonus_paise, balance_after),
+                )
+
+        return {
+            "success": True,
+            "billing_status": "active",
+            "plan": plan_id,
+            "balance_inr": balance_after / 100.0,
+        }

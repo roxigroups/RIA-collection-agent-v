@@ -12,3 +12,4 @@ gunicorn
 av
 numpy
 google-cloud-storage
+razorpay

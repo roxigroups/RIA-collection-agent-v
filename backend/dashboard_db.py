@@ -113,10 +113,13 @@ class Dashboard(DatabaseDriver):
     # -- sign-in --------------------------------------------------------------------
 
     def authenticate(self, email: str, password: str) -> dict | None:
+        self.ensure_billing_tables()
         with self.connection() as conn:
             user = conn.execute(
                 """
-                SELECT u.id, u.tenant_id, u.name, u.email, u.role, t.name AS company
+                SELECT u.id, u.tenant_id, u.name, u.email, u.role, t.name AS company,
+                       COALESCE(t.billing_status, 'active') AS billing_status,
+                       COALESCE(t.plan, 'starter') AS plan
                 FROM users u JOIN tenants t ON t.id = u.tenant_id
                 WHERE lower(u.email) = lower(%s) AND u.status = 'Active'
                     AND u.password_hash = crypt(%s, u.password_hash)
@@ -128,9 +131,11 @@ class Dashboard(DatabaseDriver):
         return user
 
     def get_user(self, user_id: str) -> dict | None:
+        self.ensure_billing_tables()
         with self.connection() as conn:
             return conn.execute(
-                "SELECT u.id, u.tenant_id, u.name, u.email, u.role, t.name AS company "
+                "SELECT u.id, u.tenant_id, u.name, u.email, u.role, t.name AS company, "
+                "COALESCE(t.billing_status, 'active') AS billing_status, COALESCE(t.plan, 'starter') AS plan "
                 "FROM users u JOIN tenants t ON t.id = u.tenant_id WHERE u.id = %s AND u.status = 'Active'",
                 (user_id,),
             ).fetchone()
@@ -141,9 +146,11 @@ class Dashboard(DatabaseDriver):
             return bool(row)
 
     def get_user_by_email(self, email: str) -> dict | None:
+        self.ensure_billing_tables()
         with self.connection() as conn:
             return conn.execute(
-                "SELECT u.id, u.tenant_id, u.name, u.email, u.role, t.name AS company "
+                "SELECT u.id, u.tenant_id, u.name, u.email, u.role, t.name AS company, "
+                "COALESCE(t.billing_status, 'active') AS billing_status, COALESCE(t.plan, 'starter') AS plan "
                 "FROM users u JOIN tenants t ON t.id = u.tenant_id "
                 "WHERE lower(u.email) = lower(%s) AND u.status = 'Active'",
                 (email.strip(),),

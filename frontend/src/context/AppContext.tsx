@@ -65,8 +65,8 @@ interface AppContextType {
   setViewState: (v: ViewState) => void;
   isLoggedIn: boolean;
   authChecked: boolean;
-  // null when signed in, else what went wrong
-  login: (user: string, pass: string) => Promise<string | null>;
+  // returns { error, user }
+  login: (user: string, pass: string) => Promise<{ error: string | null; user: Me | null }>;
   logout: () => void;
   meInfo: Me | null;
   isSuperAdmin: boolean;
@@ -286,7 +286,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (r !== role) showToast(`You are signed in as ${ROLES[role]?.n || role}`);
   };
 
-  const login = async (user: string, pass: string): Promise<string | null> => {
+  const login = async (user: string, pass: string): Promise<{ error: string | null; user: Me | null }> => {
     try {
       const res = await api<{ user: Me }>('/login', { body: { email: user, password: pass } });
       const enrichedUser = enrichUser(res.user);
@@ -294,13 +294,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setViewState('loading');
       setIsLoggedIn(true);
       showToast('Signed in successfully');
-      return null;
+      return { error: null, user: enrichedUser };
     } catch (err) {
       // The dashboard answers 500 when it cannot forward to the API (server.py not running)
       if (err instanceof ApiError && err.status !== 401 && err.status !== 400) {
-        return 'Cannot reach the RIA server. Start the API (python3 server.py in backend/) and try again.';
+        return {
+          error: 'Cannot reach the RIA server. Start the API (python3 server.py in backend/) and try again.',
+          user: null,
+        };
       }
-      return 'Those credentials did not work. Check and try again.';
+      return { error: 'Those credentials did not work. Check and try again.', user: null };
     }
   };
 
