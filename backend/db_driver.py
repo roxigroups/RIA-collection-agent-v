@@ -419,6 +419,16 @@ class DatabaseDriver:
             # Ringing time is NOT counted; unanswered calls (BUSY, NO-ANSWER, FAILED) cost ₹0.
             if answered and seconds > 0 and o.get("tenant_id"):
                 cost_paise = int(seconds * 5)
+                tenant_id = o["tenant_id"]
+                # Ensure wallet exists in case of fresh tenant
+                conn.execute(
+                    """
+                    INSERT INTO tenant_wallets (tenant_id, balance_paise, updated_at)
+                    VALUES (%s, 30000, CURRENT_TIMESTAMP)
+                    ON CONFLICT (tenant_id) DO NOTHING
+                    """,
+                    (tenant_id,),
+                )
                 w_row = conn.execute(
                     """
                     UPDATE tenant_wallets
@@ -426,7 +436,7 @@ class DatabaseDriver:
                     WHERE tenant_id = %s
                     RETURNING balance_paise
                     """,
-                    (cost_paise, o["tenant_id"]),
+                    (cost_paise, tenant_id),
                 ).fetchone()
                 balance_after = int(w_row["balance_paise"]) if w_row and w_row.get("balance_paise") is not None else 0
                 ledger_id = f"led_{secrets.token_hex(8)}"
@@ -437,7 +447,7 @@ class DatabaseDriver:
                     INSERT INTO wallet_ledger (id, tenant_id, type, amount_paise, balance_after_paise, description)
                     VALUES (%s, %s, 'call_burn', %s, %s, %s)
                     """,
-                    (ledger_id, o["tenant_id"], -cost_paise, balance_after, desc),
+                    (ledger_id, tenant_id, -cost_paise, balance_after, desc),
                 )
 
     @staticmethod
