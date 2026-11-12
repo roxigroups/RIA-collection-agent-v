@@ -121,7 +121,7 @@ export default function OnboardingActivatePage() {
           email: meInfo?.e || '',
         },
         theme: {
-          color: '#2563eb',
+          color: '#1E52C9',
         },
         modal: {
           ondismiss: () => {
@@ -183,24 +183,23 @@ export default function OnboardingActivatePage() {
   };
 
   return (
-    <div className="activate-page">
+    <div className="activate-light-page">
       <Script src="https://checkout.razorpay.com/v1/checkout.js" />
 
       <style jsx global>{`
-        .activate-page {
+        .activate-light-page {
           min-height: 100vh;
-          background: #090e1a;
-          color: #f1f5f9;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+          background: #f4f6fa;
+          color: #12203f;
+          font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           display: flex;
           flex-direction: column;
           box-sizing: border-box;
         }
 
-        .act-header {
-          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-          background: rgba(13, 19, 34, 0.85);
-          backdrop-filter: blur(12px);
+        .act-light-header {
+          border-bottom: 1px solid #e2e8f2;
+          background: #ffffff;
           position: sticky;
           top: 0;
           z-index: 20;
@@ -208,6 +207,7 @@ export default function OnboardingActivatePage() {
           display: flex;
           align-items: center;
           justify-content: space-between;
+          box-shadow: 0 1px 3px rgba(15, 35, 80, 0.04);
         }
 
         .act-logo-box {
@@ -219,20 +219,21 @@ export default function OnboardingActivatePage() {
         .act-logo-icon {
           width: 36px;
           height: 36px;
-          border-radius: 10px;
-          background: linear-gradient(135deg, #2563eb, #6366f1);
+          border-radius: 9px;
+          background: linear-gradient(135deg, #1e52c9, #0f2350);
           display: flex;
           align-items: center;
           justify-content: center;
           font-weight: 800;
           font-size: 18px;
-          color: #fff;
-          box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+          color: #ffffff;
+          box-shadow: 0 2px 8px rgba(30, 82, 201, 0.25);
         }
 
         .act-title-text {
           font-weight: 800;
           font-size: 15px;
+          color: #0f2350;
           letter-spacing: -0.01em;
           display: flex;
           align-items: center;
@@ -243,10 +244,10 @@ export default function OnboardingActivatePage() {
           font-size: 10px;
           font-weight: 700;
           text-transform: uppercase;
-          letter-spacing: 0.05em;
-          background: rgba(59, 130, 246, 0.15);
-          color: #60a5fa;
-          border: 1px solid rgba(59, 130, 246, 0.3);
+          letter-spacing: 0.04em;
+          background: #e8eefc;
+          color: #1e52c9;
+          border: 1px solid #c7d7f7;
           padding: 2px 8px;
           border-radius: 999px;
         }
@@ -254,7 +255,7 @@ export default function OnboardingActivatePage() {
         .act-hero {
           max-width: 1080px;
           margin: 0 auto;
-          padding: 48px 24px 64px;
+          padding: 44px 24px 60px;
           flex: 1;
           display: flex;
           flex-direction: column;
@@ -269,68 +270,69 @@ export default function OnboardingActivatePage() {
           gap: 8px;
           padding: 6px 14px;
           border-radius: 999px;
-          background: rgba(37, 99, 235, 0.12);
-          border: 1px solid rgba(59, 130, 246, 0.25);
-          color: #93c5fd;
+          background: #e8eefc;
+          border: 1px solid #cbdcf9;
+          color: #1e52c9;
           font-size: 12px;
           font-weight: 600;
-          margin-bottom: 16px;
+          margin-bottom: 14px;
         }
 
         .act-badge-dot {
           width: 8px;
           height: 8px;
           border-radius: 50%;
-          background: #3b82f6;
-          box-shadow: 0 0 8px #3b82f6;
+          background: #1e52c9;
         }
 
         .act-h1 {
-          font-size: clamp(28px, 4vw, 46px);
+          font-size: clamp(28px, 4vw, 42px);
           font-weight: 800;
           letter-spacing: -0.025em;
           text-align: center;
           margin: 0;
-          background: linear-gradient(180deg, #ffffff 30%, #94a3b8 100%);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
+          color: #0f2350;
         }
 
         .act-sub {
           margin: 12px 0 0;
           font-size: 15px;
-          color: #94a3b8;
+          color: #53617c;
           text-align: center;
           max-width: 640px;
           line-height: 1.55;
         }
 
         .act-cards-grid {
-          margin-top: 40px;
+          margin-top: 36px;
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-          gap: 28px;
+          gap: 24px;
           width: 100%;
           max-width: 860px;
         }
 
         .act-card {
           position: relative;
-          background: #111827;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 20px;
+          background: #ffffff;
+          border: 1px solid #e2e8f2;
+          border-radius: 16px;
           padding: 32px 28px;
           display: flex;
           flex-direction: column;
           justify-content: space-between;
-          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
-          transition: transform 0.2s ease, border-color 0.2s ease;
+          box-shadow: 0 1px 3px rgba(15, 35, 80, 0.05), 0 8px 24px rgba(15, 35, 80, 0.06);
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .act-card:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 6px rgba(15, 35, 80, 0.06), 0 14px 32px rgba(15, 35, 80, 0.09);
         }
 
         .act-card.popular {
-          background: linear-gradient(180deg, #131c31 0%, #0d1527 100%);
-          border: 2px solid #3b82f6;
-          box-shadow: 0 16px 40px -10px rgba(37, 99, 235, 0.25);
+          border: 2px solid #1e52c9;
+          box-shadow: 0 4px 12px rgba(30, 82, 201, 0.12), 0 16px 36px rgba(30, 82, 201, 0.14);
         }
 
         .act-popular-tag {
@@ -338,7 +340,7 @@ export default function OnboardingActivatePage() {
           top: -12px;
           left: 50%;
           transform: translateX(-50%);
-          background: linear-gradient(90deg, #2563eb, #4f46e5);
+          background: linear-gradient(90deg, #1e52c9, #0f2350);
           color: #ffffff;
           font-size: 11px;
           font-weight: 700;
@@ -346,11 +348,11 @@ export default function OnboardingActivatePage() {
           letter-spacing: 0.05em;
           padding: 4px 14px;
           border-radius: 999px;
-          box-shadow: 0 4px 10px rgba(37, 99, 235, 0.4);
+          box-shadow: 0 3px 8px rgba(30, 82, 201, 0.35);
         }
 
         .act-price-row {
-          margin: 20px 0 12px;
+          margin: 18px 0 10px;
           display: flex;
           align-items: baseline;
           gap: 8px;
@@ -359,7 +361,7 @@ export default function OnboardingActivatePage() {
         .act-price-val {
           font-size: 42px;
           font-weight: 900;
-          color: #ffffff;
+          color: #0f2350;
           letter-spacing: -0.02em;
         }
 
@@ -367,9 +369,9 @@ export default function OnboardingActivatePage() {
           display: inline-flex;
           align-items: center;
           gap: 6px;
-          background: rgba(16, 185, 129, 0.12);
-          border: 1px solid rgba(16, 185, 129, 0.25);
-          color: #34d399;
+          background: #e6f4ec;
+          border: 1px solid #bfe0cd;
+          color: #157f4c;
           font-size: 12px;
           font-weight: 600;
           padding: 6px 12px;
@@ -379,8 +381,8 @@ export default function OnboardingActivatePage() {
 
         .act-btn {
           width: 100%;
-          padding: 14px 16px;
-          border-radius: 12px;
+          padding: 13px 16px;
+          border-radius: 10px;
           border: 0;
           font-size: 14px;
           font-weight: 700;
@@ -393,29 +395,28 @@ export default function OnboardingActivatePage() {
         }
 
         .act-btn.primary {
-          background: #2563eb;
+          background: #1e52c9;
           color: #ffffff;
-          box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+          box-shadow: 0 4px 12px rgba(30, 82, 201, 0.3);
         }
 
         .act-btn.primary:hover {
-          background: #1d4ed8;
+          background: #1844a8;
         }
 
         .act-btn.secondary {
-          background: #1f2937;
+          background: #0f2350;
           color: #ffffff;
-          border: 1px solid rgba(255, 255, 255, 0.12);
         }
 
         .act-btn.secondary:hover {
-          background: #374151;
+          background: #16305f;
         }
 
         .act-feature-list {
-          margin: 24px 0 0;
-          padding: 20px 0 0;
-          border-top: 1px solid rgba(255, 255, 255, 0.08);
+          margin: 22px 0 0;
+          padding: 18px 0 0;
+          border-top: 1px solid #eef2f8;
           list-style: none;
         }
 
@@ -424,13 +425,13 @@ export default function OnboardingActivatePage() {
           align-items: flex-start;
           gap: 10px;
           font-size: 12.5px;
-          color: #cbd5e1;
+          color: #334155;
           margin-bottom: 12px;
           line-height: 1.45;
         }
 
         .act-check {
-          color: #3b82f6;
+          color: #1e52c9;
           font-weight: 900;
           flex-shrink: 0;
         }
@@ -439,13 +440,13 @@ export default function OnboardingActivatePage() {
           margin-top: 36px;
           text-align: center;
           font-size: 12px;
-          color: #64748b;
+          color: #8593ad;
           max-width: 480px;
         }
       `}</style>
 
       {/* Header */}
-      <header className="act-header">
+      <header className="act-light-header">
         <div className="act-logo-box">
           <div className="act-logo-icon">R</div>
           <div>
@@ -453,14 +454,14 @@ export default function OnboardingActivatePage() {
               RIA AI AGENT
               <span className="act-pill-small">Platform Activation</span>
             </div>
-            <div style={{ fontSize: '11px', color: '#64748b' }}>Distribution Intelligence Platform</div>
+            <div style={{ fontSize: '11px', color: '#53617c' }}>Distribution Intelligence Platform</div>
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '12px' }}>
           {meInfo && (
-            <span style={{ color: '#94a3b8' }}>
-              Signed in as <strong style={{ color: '#f8fafc' }}>{meInfo.e}</strong>
+            <span style={{ color: '#53617c' }}>
+              Signed in as <strong style={{ color: '#0f2350' }}>{meInfo.e}</strong>
             </span>
           )}
           <button
@@ -470,7 +471,7 @@ export default function OnboardingActivatePage() {
             style={{
               background: 'transparent',
               border: 0,
-              color: '#3b82f6',
+              color: '#1e52c9',
               cursor: 'pointer',
               fontWeight: 600,
               textDecoration: 'underline',
@@ -491,20 +492,20 @@ export default function OnboardingActivatePage() {
         <h1 className="act-h1">Plans that grow with you</h1>
         <p className="act-sub">
           Activate your distribution workspace with autonomous multilingual voice recovery. Both plans include{' '}
-          <strong style={{ color: '#60a5fa' }}>₹300 in free voice calling credits</strong> to start dialing immediately.
+          <strong style={{ color: '#1e52c9' }}>₹300 in free voice calling credits</strong> to start dialing immediately.
         </p>
 
         {errorMsg && (
           <div
             style={{
-              marginTop: '20px',
+              marginTop: '18px',
               width: '100%',
               maxWidth: '440px',
-              background: 'rgba(239, 68, 68, 0.1)',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
-              color: '#fca5a5',
+              background: '#fdecef',
+              border: '1px solid #f6cfd6',
+              color: '#a70d26',
               padding: '12px 16px',
-              borderRadius: '10px',
+              borderRadius: '8px',
               fontSize: '12px',
               display: 'flex',
               alignItems: 'center',
@@ -514,7 +515,7 @@ export default function OnboardingActivatePage() {
             <span>⚠️ {errorMsg}</span>
             <button
               onClick={() => setErrorMsg('')}
-              style={{ background: 'transparent', border: 0, color: '#f87171', fontWeight: 700, cursor: 'pointer' }}
+              style={{ background: 'transparent', border: 0, color: '#a70d26', fontWeight: 700, cursor: 'pointer' }}
             >
               ✕
             </button>
@@ -532,8 +533,8 @@ export default function OnboardingActivatePage() {
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
-                      <h2 style={{ fontSize: '20px', fontWeight: 800, margin: 0, color: '#ffffff' }}>{plan.name}</h2>
-                      <p style={{ fontSize: '12px', color: '#94a3b8', margin: '4px 0 0', minHeight: '34px' }}>
+                      <h2 style={{ fontSize: '20px', fontWeight: 800, margin: 0, color: '#0f2350' }}>{plan.name}</h2>
+                      <p style={{ fontSize: '12.5px', color: '#53617c', margin: '4px 0 0', minHeight: '34px' }}>
                         {plan.tagline}
                       </p>
                     </div>
@@ -541,8 +542,9 @@ export default function OnboardingActivatePage() {
                       style={{
                         width: '40px',
                         height: '40px',
-                        borderRadius: '12px',
-                        background: plan.popular ? 'rgba(37, 99, 235, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                        borderRadius: '10px',
+                        background: plan.popular ? '#e8eefc' : '#f4f6fa',
+                        color: plan.popular ? '#1e52c9' : '#53617c',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -555,7 +557,7 @@ export default function OnboardingActivatePage() {
 
                   <div className="act-price-row">
                     <span className="act-price-val">{plan.price}</span>
-                    <span style={{ fontSize: '12px', color: '#94a3b8' }}>one-time · lifetime</span>
+                    <span style={{ fontSize: '12px', color: '#8593ad' }}>one-time · lifetime</span>
                   </div>
 
                   <div className="act-bonus-pill">
@@ -571,12 +573,21 @@ export default function OnboardingActivatePage() {
                     {isLoading ? 'Opening Razorpay...' : plan.buttonText}
                   </button>
 
-                  <div style={{ textAlign: 'center', fontSize: '11px', color: '#64748b', marginTop: '8px' }}>
+                  <div style={{ textAlign: 'center', fontSize: '11px', color: '#8593ad', marginTop: '8px' }}>
                     Standard Web Checkout · UPI, Cards & Netbanking
                   </div>
 
                   <ul className="act-feature-list">
-                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#e2e8f0', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    <div
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        color: '#53617c',
+                        marginBottom: '12px',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                      }}
+                    >
                       {plan.featuresHeader}
                     </div>
                     {plan.features.map((feature, idx) => (
@@ -592,11 +603,11 @@ export default function OnboardingActivatePage() {
                   style={{
                     marginTop: '24px',
                     paddingTop: '14px',
-                    borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+                    borderTop: '1px solid #eef2f8',
                     display: 'flex',
                     justifyContent: 'space-between',
                     fontSize: '11px',
-                    color: '#64748b',
+                    color: '#8593ad',
                   }}
                 >
                   <span>SSL 256-Bit Encrypted</span>
