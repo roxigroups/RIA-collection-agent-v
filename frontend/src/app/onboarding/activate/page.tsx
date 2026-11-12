@@ -71,7 +71,6 @@ export default function OnboardingActivatePage() {
   const router = useRouter();
   const { meInfo, isSuperAdmin, showToast } = useApp();
   const [loadingPlan, setLoadingPlan] = useState<'starter' | 'pro' | null>(null);
-  const [razorpayLoaded, setRazorpayLoaded] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
   // If already active or superadmin, route straight to dashboard
@@ -153,7 +152,6 @@ export default function OnboardingActivatePage() {
 
             if (verifyRes.success) {
               showToast('🎉 Workspace activated! ₹300 welcome credits added.');
-              // Redirect to main workspace
               window.location.href = '/dashboard';
             } else {
               throw new Error('Verification did not return success.');
@@ -185,159 +183,422 @@ export default function OnboardingActivatePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0b0f19] text-white flex flex-col justify-between selection:bg-blue-600 selection:text-white">
-      <Script
-        src="https://checkout.razorpay.com/v1/checkout.js"
-        onLoad={() => setRazorpayLoaded(true)}
-      />
+    <div className="activate-page">
+      <Script src="https://checkout.razorpay.com/v1/checkout.js" />
 
-      {/* Top Navigation Bar */}
-      <header className="border-b border-gray-800/80 bg-[#0d1322]/80 backdrop-blur-md sticky top-0 z-20 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center font-bold text-lg shadow-lg shadow-blue-500/20">
-            R
-          </div>
+      <style jsx global>{`
+        .activate-page {
+          min-height: 100vh;
+          background: #090e1a;
+          color: #f1f5f9;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+          display: flex;
+          flex-direction: column;
+          box-sizing: border-box;
+        }
+
+        .act-header {
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+          background: rgba(13, 19, 34, 0.85);
+          backdrop-filter: blur(12px);
+          position: sticky;
+          top: 0;
+          z-index: 20;
+          padding: 14px 28px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+
+        .act-logo-box {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .act-logo-icon {
+          width: 36px;
+          height: 36px;
+          border-radius: 10px;
+          background: linear-gradient(135deg, #2563eb, #6366f1);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 800;
+          font-size: 18px;
+          color: #fff;
+          box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+        }
+
+        .act-title-text {
+          font-weight: 800;
+          font-size: 15px;
+          letter-spacing: -0.01em;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .act-pill-small {
+          font-size: 10px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          background: rgba(59, 130, 246, 0.15);
+          color: #60a5fa;
+          border: 1px solid rgba(59, 130, 246, 0.3);
+          padding: 2px 8px;
+          border-radius: 999px;
+        }
+
+        .act-hero {
+          max-width: 1080px;
+          margin: 0 auto;
+          padding: 48px 24px 64px;
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          width: 100%;
+          box-sizing: border-box;
+        }
+
+        .act-badge-main {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 6px 14px;
+          border-radius: 999px;
+          background: rgba(37, 99, 235, 0.12);
+          border: 1px solid rgba(59, 130, 246, 0.25);
+          color: #93c5fd;
+          font-size: 12px;
+          font-weight: 600;
+          margin-bottom: 16px;
+        }
+
+        .act-badge-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: #3b82f6;
+          box-shadow: 0 0 8px #3b82f6;
+        }
+
+        .act-h1 {
+          font-size: clamp(28px, 4vw, 46px);
+          font-weight: 800;
+          letter-spacing: -0.025em;
+          text-align: center;
+          margin: 0;
+          background: linear-gradient(180deg, #ffffff 30%, #94a3b8 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+        }
+
+        .act-sub {
+          margin: 12px 0 0;
+          font-size: 15px;
+          color: #94a3b8;
+          text-align: center;
+          max-width: 640px;
+          line-height: 1.55;
+        }
+
+        .act-cards-grid {
+          margin-top: 40px;
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+          gap: 28px;
+          width: 100%;
+          max-width: 860px;
+        }
+
+        .act-card {
+          position: relative;
+          background: #111827;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 20px;
+          padding: 32px 28px;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+          transition: transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .act-card.popular {
+          background: linear-gradient(180deg, #131c31 0%, #0d1527 100%);
+          border: 2px solid #3b82f6;
+          box-shadow: 0 16px 40px -10px rgba(37, 99, 235, 0.25);
+        }
+
+        .act-popular-tag {
+          position: absolute;
+          top: -12px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: linear-gradient(90deg, #2563eb, #4f46e5);
+          color: #ffffff;
+          font-size: 11px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          padding: 4px 14px;
+          border-radius: 999px;
+          box-shadow: 0 4px 10px rgba(37, 99, 235, 0.4);
+        }
+
+        .act-price-row {
+          margin: 20px 0 12px;
+          display: flex;
+          align-items: baseline;
+          gap: 8px;
+        }
+
+        .act-price-val {
+          font-size: 42px;
+          font-weight: 900;
+          color: #ffffff;
+          letter-spacing: -0.02em;
+        }
+
+        .act-bonus-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          background: rgba(16, 185, 129, 0.12);
+          border: 1px solid rgba(16, 185, 129, 0.25);
+          color: #34d399;
+          font-size: 12px;
+          font-weight: 600;
+          padding: 6px 12px;
+          border-radius: 8px;
+          margin-bottom: 20px;
+        }
+
+        .act-btn {
+          width: 100%;
+          padding: 14px 16px;
+          border-radius: 12px;
+          border: 0;
+          font-size: 14px;
+          font-weight: 700;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          transition: filter 0.15s ease, transform 0.1s ease;
+        }
+
+        .act-btn.primary {
+          background: #2563eb;
+          color: #ffffff;
+          box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+        }
+
+        .act-btn.primary:hover {
+          background: #1d4ed8;
+        }
+
+        .act-btn.secondary {
+          background: #1f2937;
+          color: #ffffff;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        .act-btn.secondary:hover {
+          background: #374151;
+        }
+
+        .act-feature-list {
+          margin: 24px 0 0;
+          padding: 20px 0 0;
+          border-top: 1px solid rgba(255, 255, 255, 0.08);
+          list-style: none;
+        }
+
+        .act-feature-item {
+          display: flex;
+          align-items: flex-start;
+          gap: 10px;
+          font-size: 12.5px;
+          color: #cbd5e1;
+          margin-bottom: 12px;
+          line-height: 1.45;
+        }
+
+        .act-check {
+          color: #3b82f6;
+          font-weight: 900;
+          flex-shrink: 0;
+        }
+
+        .act-footer-trust {
+          margin-top: 36px;
+          text-align: center;
+          font-size: 12px;
+          color: #64748b;
+          max-width: 480px;
+        }
+      `}</style>
+
+      {/* Header */}
+      <header className="act-header">
+        <div className="act-logo-box">
+          <div className="act-logo-icon">R</div>
           <div>
-            <div className="font-bold tracking-tight text-base flex items-center gap-2">
+            <div className="act-title-text">
               RIA AI AGENT
-              <span className="text-[11px] font-semibold uppercase tracking-wider bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-full">
-                Platform Activation
-              </span>
+              <span className="act-pill-small">Platform Activation</span>
             </div>
-            <div className="text-xs text-gray-400">Distribution Intelligence Platform</div>
+            <div style={{ fontSize: '11px', color: '#64748b' }}>Distribution Intelligence Platform</div>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 text-xs">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '12px' }}>
           {meInfo && (
-            <span className="text-gray-400">
-              Signed in as <span className="text-gray-200 font-medium">{meInfo.e}</span>
+            <span style={{ color: '#94a3b8' }}>
+              Signed in as <strong style={{ color: '#f8fafc' }}>{meInfo.e}</strong>
             </span>
           )}
           <button
             onClick={() => {
               window.location.href = '/login';
             }}
-            className="text-xs text-gray-400 hover:text-gray-200 transition-colors underline"
+            style={{
+              background: 'transparent',
+              border: 0,
+              color: '#3b82f6',
+              cursor: 'pointer',
+              fontWeight: 600,
+              textDecoration: 'underline',
+            }}
           >
             Sign out
           </button>
         </div>
       </header>
 
-      {/* Main Hero & Pricing Cards Section */}
-      <main className="max-w-6xl mx-auto px-6 py-12 flex-1 flex flex-col items-center justify-center">
-        {/* Banner Pill */}
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/25 text-blue-300 text-xs font-medium mb-4 shadow-inner">
-          <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+      {/* Main Content */}
+      <main className="act-hero">
+        <div className="act-badge-main">
+          <span className="act-badge-dot" />
           One-Time Platform Setup · Lifetime Access
         </div>
 
-        {/* Title & Subtitle */}
-        <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight text-center bg-gradient-to-b from-white via-gray-100 to-gray-400 bg-clip-text text-transparent">
-          Plans that grow with you
-        </h1>
-        <p className="mt-3 text-sm md:text-base text-gray-400 text-center max-w-2xl">
-          Activate your distribution workspace with autonomous multilingual voice collection. Both plans include{' '}
-          <span className="text-blue-400 font-semibold">₹300 in free voice calling credits</span> to start dialing immediately.
+        <h1 className="act-h1">Plans that grow with you</h1>
+        <p className="act-sub">
+          Activate your distribution workspace with autonomous multilingual voice recovery. Both plans include{' '}
+          <strong style={{ color: '#60a5fa' }}>₹300 in free voice calling credits</strong> to start dialing immediately.
         </p>
 
         {errorMsg && (
-          <div className="mt-6 w-full max-w-md bg-red-950/40 border border-red-500/40 text-red-300 px-4 py-3 rounded-xl text-xs flex items-center justify-between">
+          <div
+            style={{
+              marginTop: '20px',
+              width: '100%',
+              maxWidth: '440px',
+              background: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              color: '#fca5a5',
+              padding: '12px 16px',
+              borderRadius: '10px',
+              fontSize: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
             <span>⚠️ {errorMsg}</span>
-            <button onClick={() => setErrorMsg('')} className="text-red-400 hover:text-red-200 font-bold ml-2">
-              ×
+            <button
+              onClick={() => setErrorMsg('')}
+              style={{ background: 'transparent', border: 0, color: '#f87171', fontWeight: 700, cursor: 'pointer' }}
+            >
+              ✕
             </button>
           </div>
         )}
 
-        {/* The 2 Cards Grid */}
-        <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl">
+        {/* Pricing Cards */}
+        <div className="act-cards-grid">
           {PLANS.map((plan) => {
             const isLoading = loadingPlan === plan.id;
             return (
-              <div
-                key={plan.id}
-                className={`relative rounded-3xl p-8 flex flex-col justify-between transition-all duration-200 ${
-                  plan.popular
-                    ? 'bg-gradient-to-b from-[#141d33] to-[#0f172a] border-2 border-blue-500/60 shadow-2xl shadow-blue-500/15'
-                    : 'bg-[#111726]/90 border border-gray-800 hover:border-gray-700 shadow-xl'
-                }`}
-              >
-                {/* Popular Pill */}
-                {plan.popular && (
-                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-[11px] font-bold tracking-wider uppercase px-3.5 py-1 rounded-full shadow-md">
-                    Most Popular
-                  </div>
-                )}
+              <div key={plan.id} className={`act-card ${plan.popular ? 'popular' : ''}`}>
+                {plan.popular && <div className="act-popular-tag">Most Popular</div>}
 
                 <div>
-                  {/* Icon & Plan Name */}
-                  <div className="flex items-center justify-between">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
-                      <h2 className="text-xl font-bold text-white tracking-tight">{plan.name}</h2>
-                      <p className="text-xs text-gray-400 mt-1 min-h-[32px]">{plan.tagline}</p>
+                      <h2 style={{ fontSize: '20px', fontWeight: 800, margin: 0, color: '#ffffff' }}>{plan.name}</h2>
+                      <p style={{ fontSize: '12px', color: '#94a3b8', margin: '4px 0 0', minHeight: '34px' }}>
+                        {plan.tagline}
+                      </p>
                     </div>
                     <div
-                      className={`w-11 h-11 rounded-2xl flex items-center justify-center text-lg ${
-                        plan.popular ? 'bg-blue-600/20 text-blue-400' : 'bg-gray-800/60 text-gray-300'
-                      }`}
+                      style={{
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '12px',
+                        background: plan.popular ? 'rgba(37, 99, 235, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '18px',
+                      }}
                     >
                       {plan.popular ? '⚡' : '🚀'}
                     </div>
                   </div>
 
-                  {/* Price */}
-                  <div className="mt-6 flex items-baseline gap-2">
-                    <span className="text-4xl md:text-5xl font-black text-white tracking-tight">{plan.price}</span>
-                    <span className="text-xs text-gray-400 font-medium">one-time · lifetime</span>
+                  <div className="act-price-row">
+                    <span className="act-price-val">{plan.price}</span>
+                    <span style={{ fontSize: '12px', color: '#94a3b8' }}>one-time · lifetime</span>
                   </div>
 
-                  {/* Welcome Bonus Callout */}
-                  <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
+                  <div className="act-bonus-pill">
                     <span>🎁</span>
                     <span>Includes ₹300 Free Calling Credits</span>
                   </div>
 
-                  {/* Action Button */}
                   <button
                     onClick={() => handleSelectPlan(plan)}
                     disabled={isLoading || (loadingPlan !== null && !isLoading)}
-                    className={`mt-6 w-full py-3.5 px-4 rounded-xl font-semibold text-sm transition-all duration-150 flex items-center justify-center gap-2 shadow-lg ${
-                      plan.popular
-                        ? 'bg-blue-600 hover:bg-blue-500 active:scale-[0.99] text-white shadow-blue-600/30'
-                        : 'bg-gray-800 hover:bg-gray-700 active:scale-[0.99] text-white'
-                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    className={`act-btn ${plan.popular ? 'primary' : 'secondary'}`}
                   >
-                    {isLoading ? (
-                      <>
-                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        <span>Opening Razorpay...</span>
-                      </>
-                    ) : (
-                      <span>{plan.buttonText}</span>
-                    )}
+                    {isLoading ? 'Opening Razorpay...' : plan.buttonText}
                   </button>
 
-                  <div className="mt-2 text-center text-[11px] text-gray-400">
+                  <div style={{ textAlign: 'center', fontSize: '11px', color: '#64748b', marginTop: '8px' }}>
                     Standard Web Checkout · UPI, Cards & Netbanking
                   </div>
 
-                  {/* Feature Checklist */}
-                  <div className="mt-8 pt-6 border-t border-gray-800/80">
-                    <div className="text-xs font-semibold text-gray-300 mb-4">{plan.featuresHeader}</div>
-                    <ul className="space-y-3">
-                      {plan.features.map((feature, idx) => (
-                        <li key={idx} className="flex items-start gap-2.5 text-xs text-gray-300 leading-relaxed">
-                          <span className="text-blue-400 font-bold mt-0.5">✓</span>
-                          <span>{feature}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                  <ul className="act-feature-list">
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#e2e8f0', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      {plan.featuresHeader}
+                    </div>
+                    {plan.features.map((feature, idx) => (
+                      <li key={idx} className="act-feature-item">
+                        <span className="act-check">✓</span>
+                        <span>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
 
-                <div className="mt-8 pt-4 border-t border-gray-800/40 text-[11px] text-gray-400 flex items-center justify-between">
+                <div
+                  style={{
+                    marginTop: '24px',
+                    paddingTop: '14px',
+                    borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    fontSize: '11px',
+                    color: '#64748b',
+                  }}
+                >
                   <span>SSL 256-Bit Encrypted</span>
                   <span>Direct Vobiz Provisioning</span>
                 </div>
@@ -346,16 +607,10 @@ export default function OnboardingActivatePage() {
           })}
         </div>
 
-        {/* Bottom Trust Guarantee */}
-        <div className="mt-12 text-center text-xs text-gray-400 max-w-md">
-          Payments are securely processed via Razorpay Standard Checkout. After setup, you can add more calling credits to your wallet at any time.
+        <div className="act-footer-trust">
+          Payments are securely processed via Razorpay Standard Checkout. After platform setup, you can top-up calling credits in your workspace anytime.
         </div>
       </main>
-
-      {/* Footer */}
-      <footer className="border-t border-gray-800/60 py-4 px-6 text-center text-xs text-gray-400">
-        © 2026 RIA AI AGENT — Distribution Intelligence Platform. All rights reserved.
-      </footer>
     </div>
   );
 }
