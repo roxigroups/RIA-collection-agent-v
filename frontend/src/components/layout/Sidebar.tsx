@@ -102,7 +102,6 @@ export default function Sidebar() {
         ) : (
           <>
             {NAV.map((item) => {
-              if (item.k === 'billing' && (Boolean(meInfo?.is_superadmin) || role === 'TA')) return null;
               const p = perm(item.k);
               if (p === 'X') return null;
               const isActive = activeKey === item.k;

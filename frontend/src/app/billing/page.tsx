@@ -63,13 +63,6 @@ export default function WalletPage() {
   const [customModalInput, setCustomModalInput] = useState<string>('1500');
   const rechargeSectionRef = useRef<HTMLDivElement>(null);
 
-  // Strict Admin Guard: Superadmins and Technical Admins do NOT have payment pages
-  useEffect(() => {
-    if (meInfo?.is_superadmin || role === 'TA') {
-      router.replace('/admin/dashboard');
-    }
-  }, [meInfo, role, router]);
-
   const fetchWallet = async () => {
     try {
       setLoading(true);
@@ -83,14 +76,8 @@ export default function WalletPage() {
   };
 
   useEffect(() => {
-    if (!meInfo?.is_superadmin && role !== 'TA') {
-      fetchWallet();
-    }
-  }, [meInfo, role]);
-
-  if (meInfo?.is_superadmin || role === 'TA') {
-    return null;
-  }
+    fetchWallet();
+  }, []);
 
   const activeAmount = isCustom ? Math.max(100, parseInt(customInput || '0', 10) || 0) : selectedAmount;
   const customModalAmount = Math.max(100, parseInt(customModalInput || '0', 10) || 0);
