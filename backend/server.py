@@ -830,6 +830,8 @@ def billing_wallet():
     })
 
 
+@app.post("/api/topup-order")
+@app.post("/api/billing/topup-order")
 @app.post("/api/billing/topup/order")
 def topup_order():
     user = current_user()
@@ -889,6 +891,8 @@ def topup_order():
         return jsonify({"error": f"Failed to create order: {str(exc)}"}), 500
 
 
+@app.post("/api/verify-topup")
+@app.post("/api/billing/verify-topup")
 @app.post("/api/billing/topup/verify")
 def topup_verify():
     user = current_user()

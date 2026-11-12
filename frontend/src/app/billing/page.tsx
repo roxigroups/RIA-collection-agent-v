@@ -22,6 +22,30 @@ const QUICK_PACKS = [
   { amount: 10000, minutes: 3333, badge: 'BEST VALUE', badgeType: 'value' },
 ];
 
+const loadRazorpay = (): Promise<boolean> => {
+  return new Promise((resolve) => {
+    if (typeof window !== 'undefined' && window.Razorpay) {
+      resolve(true);
+      return;
+    }
+    const existing = document.querySelector('script[src*="checkout.razorpay.com"]');
+    if (existing) {
+      existing.addEventListener('load', () => resolve(true));
+      existing.addEventListener('error', () => resolve(false));
+      if (typeof window !== 'undefined' && window.Razorpay) {
+        resolve(true);
+        return;
+      }
+    }
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
+
 export default function WalletPage() {
   const router = useRouter();
   const { meInfo, role, showToast, refresh } = useApp();
@@ -73,11 +97,19 @@ export default function WalletPage() {
     setErrorMsg('');
     if (activeAmount < 100) {
       setErrorMsg('Minimum top-up amount is ₹100.');
+      showToast('Minimum top-up amount is ₹100.');
       return;
     }
 
     setIsPaying(true);
     try {
+      // 1. Ensure Razorpay Checkout SDK is ready
+      const loaded = await loadRazorpay();
+      if (!loaded || !window.Razorpay) {
+        throw new Error('Unable to load Razorpay payment gateway. Please check your internet connection and try again.');
+      }
+
+      // 2. Create top-up order on backend
       const orderRes = await api<{
         order_id: string;
         amount: number;
@@ -91,10 +123,6 @@ export default function WalletPage() {
         orderRes.key_id ||
         process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ||
         'rzp_test_TzFI10AZU8WRbV';
-
-      if (!window.Razorpay) {
-        throw new Error('Razorpay Checkout SDK is still loading. Please try again in a few seconds.');
-      }
 
       const options = {
         key: keyId,
@@ -330,9 +358,8 @@ export default function WalletPage() {
               <div style={{ display: 'flex', gap: '12px', marginTop: '32px' }}>
                 <button
                   type="button"
-                  onClick={() => {
-                    rechargeSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
-                  }}
+                  onClick={handleTopup}
+                  disabled={isPaying}
                   style={{
                     flex: 1,
                     height: '42px',
@@ -342,7 +369,7 @@ export default function WalletPage() {
                     borderRadius: '8px',
                     fontSize: '13.5px',
                     fontWeight: 600,
-                    cursor: 'pointer',
+                    cursor: isPaying ? 'wait' : 'pointer',
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -351,7 +378,7 @@ export default function WalletPage() {
                   }}
                 >
                   <span>+</span>
-                  <span>Recharge wallet</span>
+                  <span>{isPaying ? 'Opening…' : 'Recharge wallet'}</span>
                 </button>
 
                 <button
