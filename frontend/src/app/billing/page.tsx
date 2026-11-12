@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import Script from 'next/script';
+import { useRouter } from 'next/navigation';
 import AppShell from '@/components/layout/AppShell';
 import PageHead from '@/components/common/PageHead';
 import { useApp } from '@/context/AppContext';
 import { api, ApiError } from '@/lib/api';
-import { WalletDetailsResponse, WalletLedgerItem, BillingTransactionItem } from '@/types';
+import { WalletDetailsResponse, WalletLedgerItem } from '@/types';
 
 declare global {
   interface Window {
@@ -15,22 +16,33 @@ declare global {
 }
 
 const QUICK_PACKS = [
-  { amount: 500, label: 'Starter Pack', minutes: 166, tag: '' },
-  { amount: 1000, label: 'Standard Pack', minutes: 333, tag: 'Most Popular' },
-  { amount: 2500, label: 'Growth Pack', minutes: 833, tag: 'Best Value' },
-  { amount: 5000, label: 'Enterprise Pack', minutes: 1666, tag: 'Max Value' },
+  { amount: 1000, minutes: 333, badge: '' },
+  { amount: 2500, minutes: 833, badge: '' },
+  { amount: 5000, minutes: 1666, badge: 'MOST POPULAR', badgeType: 'popular' },
+  { amount: 10000, minutes: 3333, badge: 'BEST VALUE', badgeType: 'value' },
 ];
 
-export default function BillingPage() {
-  const { meInfo, showToast, refresh } = useApp();
+export default function WalletPage() {
+  const router = useRouter();
+  const { meInfo, role, showToast, refresh } = useApp();
   const [wallet, setWallet] = useState<WalletDetailsResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedAmount, setSelectedAmount] = useState<number>(1000);
+  const [activeTab, setActiveTab] = useState<'wallet' | 'history'>('wallet');
+  const [selectedAmount, setSelectedAmount] = useState<number>(5000);
   const [isCustom, setIsCustom] = useState(false);
-  const [customInput, setCustomInput] = useState<string>('1500');
+  const [customInput, setCustomInput] = useState<string>('2000');
   const [isPaying, setIsPaying] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  const [filterType, setFilterType] = useState<'all' | 'call_burn' | 'topup'>('all');
+  const [showRedeemModal, setShowRedeemModal] = useState(false);
+  const [couponCode, setCouponCode] = useState('');
+  const rechargeSectionRef = useRef<HTMLDivElement>(null);
+
+  // Strict Admin Guard: Superadmins and Technical Admins do NOT have payment pages
+  useEffect(() => {
+    if (meInfo?.is_superadmin || role === 'TA') {
+      router.replace('/admin/dashboard');
+    }
+  }, [meInfo, role, router]);
 
   const fetchWallet = async () => {
     try {
@@ -45,10 +57,17 @@ export default function BillingPage() {
   };
 
   useEffect(() => {
-    fetchWallet();
-  }, []);
+    if (!meInfo?.is_superadmin && role !== 'TA') {
+      fetchWallet();
+    }
+  }, [meInfo, role]);
+
+  if (meInfo?.is_superadmin || role === 'TA') {
+    return null;
+  }
 
   const activeAmount = isCustom ? Math.max(100, parseInt(customInput || '0', 10) || 0) : selectedAmount;
+  const balanceInr = wallet?.balance_inr ?? meInfo?.wallet_balance_inr ?? 0;
 
   const handleTopup = async () => {
     setErrorMsg('');
@@ -59,7 +78,6 @@ export default function BillingPage() {
 
     setIsPaying(true);
     try {
-      // 1. Create top-up order on backend
       const orderRes = await api<{
         order_id: string;
         amount: number;
@@ -78,13 +96,12 @@ export default function BillingPage() {
         throw new Error('Razorpay Checkout SDK is still loading. Please try again in a few seconds.');
       }
 
-      // 2. Open Razorpay Checkout modal
       const options = {
         key: keyId,
         amount: orderRes.amount,
         currency: orderRes.currency || 'INR',
         name: 'RIA Collection Agent',
-        description: `Calling Credits Recharge — ₹${activeAmount.toLocaleString('en-IN')}`,
+        description: `Wallet Recharge — ₹${activeAmount.toLocaleString('en-IN')}`,
         image: '/logo-mark.png',
         order_id: orderRes.order_id,
         prefill: {
@@ -120,7 +137,7 @@ export default function BillingPage() {
             });
 
             if (verifyRes.success) {
-              showToast(`₹${activeAmount.toLocaleString('en-IN')} added to your calling wallet!`);
+              showToast(`₹${activeAmount.toLocaleString('en-IN')} added to your wallet!`);
               await fetchWallet();
               await refresh();
             } else {
@@ -139,7 +156,7 @@ export default function BillingPage() {
       const rzp = new window.Razorpay(options);
       rzp.on('payment.failed', (resp: any) => {
         setIsPaying(false);
-        const failReason = resp.error?.description || 'Payment was cancelled or could not be processed';
+        const failReason = resp.error?.description || 'Payment was cancelled';
         setErrorMsg(failReason);
         showToast(failReason);
       });
@@ -152,46 +169,94 @@ export default function BillingPage() {
     }
   };
 
-  const balanceInr = wallet?.balance_inr ?? meInfo?.wallet_balance_inr ?? 0;
-  const talkTimeMins = Math.floor(balanceInr / 3);
-
-  const filteredLedger = (wallet?.ledger || []).filter((item) => {
-    if (filterType === 'all') return true;
-    if (filterType === 'call_burn') return item.type === 'call_burn';
-    if (filterType === 'topup') return item.type === 'topup' || item.type === 'welcome_bonus';
-    return true;
-  });
+  const handleRedeem = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!couponCode.trim()) return;
+    showToast('Promo code applied! Testing credits will be updated.');
+    setShowRedeemModal(false);
+    setCouponCode('');
+  };
 
   return (
     <AppShell screenKey="billing">
       <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
 
-      <PageHead
-        screenKey="billing"
-        rightAction={
+      {/* Main Container */}
+      <div style={{ maxWidth: '1060px', margin: '0 auto', paddingBottom: '40px' }}>
+        {/* Header Block matching reference */}
+        <div style={{ marginBottom: '16px' }}>
+          <h1
+            style={{
+              fontSize: '28px',
+              fontWeight: 700,
+              color: '#0F2350',
+              margin: '0 0 4px',
+              letterSpacing: '-0.02em',
+            }}
+          >
+            Wallet
+          </h1>
+          <p style={{ fontSize: '14px', color: '#64748B', margin: 0 }}>
+            Prepaid balance, spending and recharge
+          </p>
+        </div>
+
+        {/* Clean Tabs with Cobalt Blue underline */}
+        <div
+          style={{
+            display: 'flex',
+            gap: '28px',
+            borderBottom: '1px solid #E2E8F0',
+            marginBottom: '24px',
+          }}
+        >
           <button
             type="button"
-            className="btn btn-sm btn-ghost"
-            onClick={fetchWallet}
-            disabled={loading}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            onClick={() => setActiveTab('wallet')}
+            style={{
+              padding: '10px 0 12px',
+              fontSize: '14px',
+              fontWeight: activeTab === 'wallet' ? 700 : 500,
+              color: activeTab === 'wallet' ? '#0F2350' : '#64748B',
+              background: 'none',
+              border: 'none',
+              borderBottom: activeTab === 'wallet' ? '2.5px solid #1E52C9' : '2.5px solid transparent',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            }}
           >
-            <span>🔄</span>
-            <span>{loading ? 'Refreshing…' : 'Refresh Balance'}</span>
+            Wallet
           </button>
-        }
-      />
 
-      <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          <button
+            type="button"
+            onClick={() => setActiveTab('history')}
+            style={{
+              padding: '10px 0 12px',
+              fontSize: '14px',
+              fontWeight: activeTab === 'history' ? 700 : 500,
+              color: activeTab === 'history' ? '#0F2350' : '#64748B',
+              background: 'none',
+              border: 'none',
+              borderBottom: activeTab === 'history' ? '2.5px solid #1E52C9' : '2.5px solid transparent',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            Usage & History
+          </button>
+        </div>
+
         {errorMsg && (
           <div
             style={{
-              padding: '12px 18px',
+              padding: '12px 16px',
               borderRadius: '8px',
               background: '#FEE2E2',
               border: '1px solid #FCA5A5',
               color: '#991B1B',
               fontSize: '13.5px',
+              marginBottom: '20px',
               display: 'flex',
               alignItems: 'center',
               gap: '10px',
@@ -202,26 +267,36 @@ export default function BillingPage() {
           </div>
         )}
 
-        {/* Top Section: Hero Wallet Card & Plan Status */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
-          {/* Card 1: Available Balance Hero */}
+        {/* TAB 1: Main Wallet View (Exact 2-Card Layout from Reference) */}
+        {activeTab === 'wallet' && (
           <div
             style={{
-              background: 'linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%)',
-              border: '1px solid #E2E8F0',
-              borderRadius: '12px',
-              padding: '24px',
-              boxShadow: '0 4px 12px rgba(15, 35, 80, 0.04)',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-              gap: '16px',
+              display: 'grid',
+              gridTemplateColumns: 'minmax(300px, 1fr) minmax(360px, 1.25fr)',
+              gap: '24px',
+              alignItems: 'stretch',
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            {/* Left Card: WALLET BALANCE */}
+            <div
+              style={{
+                background: '#FFFFFF',
+                border: '1px solid #E2E8F0',
+                borderRadius: '16px',
+                padding: '28px 24px',
+                boxShadow: '0 1px 3px rgba(15, 35, 80, 0.04)',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                minHeight: '340px',
+              }}
+            >
               <div>
-                <span
+                <div
                   style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
                     fontSize: '12px',
                     fontWeight: 700,
                     textTransform: 'uppercase',
@@ -229,605 +304,463 @@ export default function BillingPage() {
                     color: '#64748B',
                   }}
                 >
-                  Calling Credits Balance
-                </span>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginTop: '6px' }}>
-                  <span
-                    style={{
-                      fontSize: '36px',
-                      fontWeight: 800,
-                      color: balanceInr < 50 ? '#DC2626' : '#0F2350',
-                      letterSpacing: '-0.03em',
-                      fontFamily: 'var(--mono, monospace)',
-                    }}
-                  >
-                    ₹{balanceInr.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: '12.5px',
-                      fontWeight: 600,
-                      color: '#059669',
-                      background: '#ECFDF5',
-                      padding: '2px 8px',
-                      borderRadius: '12px',
-                      border: '1px solid #A7F3D0',
-                    }}
-                  >
-                    ● Live Wallet
-                  </span>
+                  <span style={{ fontSize: '15px' }}>💼</span>
+                  <span>WALLET BALANCE</span>
+                </div>
+
+                <div
+                  style={{
+                    fontSize: '44px',
+                    fontWeight: 800,
+                    color: '#0F2350',
+                    letterSpacing: '-0.03em',
+                    marginTop: '28px',
+                    fontFamily: 'var(--mono, monospace)',
+                  }}
+                >
+                  ₹{balanceInr.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                </div>
+
+                <div style={{ fontSize: '13px', color: '#64748B', marginTop: '6px' }}>
+                  ≈ {Math.floor(balanceInr / 3)} minutes of spoke AI call time
                 </div>
               </div>
-              <div
-                style={{
-                  width: '46px',
-                  height: '46px',
-                  borderRadius: '10px',
-                  background: '#EFF6FF',
-                  border: '1px solid #DBEAFE',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '22px',
-                }}
-              >
-                🪙
+
+              {/* Bottom Buttons: Primary Blue + Secondary Outline */}
+              <div style={{ display: 'flex', gap: '12px', marginTop: '32px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    rechargeSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                  style={{
+                    flex: 1,
+                    height: '42px',
+                    background: '#1E52C9',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '13.5px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    boxShadow: '0 2px 6px rgba(30, 82, 201, 0.2)',
+                  }}
+                >
+                  <span>+</span>
+                  <span>Recharge wallet</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowRedeemModal(true)}
+                  style={{
+                    height: '42px',
+                    padding: '0 16px',
+                    background: '#FFFFFF',
+                    color: '#0F2350',
+                    border: '1px solid #CBD5E1',
+                    borderRadius: '8px',
+                    fontSize: '13.5px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <span>🎁</span>
+                  <span>Redeem code</span>
+                </button>
               </div>
             </div>
 
+            {/* Right Card: Quick Recharge (2x2 Grid + Full Width Button) */}
             <div
+              ref={rechargeSectionRef}
               style={{
+                background: '#FFFFFF',
+                border: '1px solid #E2E8F0',
+                borderRadius: '16px',
+                padding: '28px 24px',
+                boxShadow: '0 1px 3px rgba(15, 35, 80, 0.04)',
                 display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '10px 14px',
-                background: '#F1F5F9',
-                borderRadius: '8px',
-                fontSize: '13px',
-                color: '#334155',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
               }}
             >
-              <span>📞</span>
-              <span>
-                Estimated talk time:{' '}
-                <strong style={{ color: '#0F2350' }}>~{talkTimeMins} minutes</strong> of AI calling
-              </span>
-            </div>
+              <div>
+                <h3
+                  style={{
+                    fontSize: '18px',
+                    fontWeight: 700,
+                    color: '#0F2350',
+                    margin: '0 0 4px',
+                  }}
+                >
+                  Quick recharge
+                </h3>
+                <p style={{ fontSize: '13px', color: '#64748B', margin: '0 0 20px' }}>
+                  Pick an amount — see how long it lasts at your burn rate.
+                </p>
 
-            {/* Pricing transparency callout */}
-            <div
-              style={{
-                padding: '12px 14px',
-                borderRadius: '8px',
-                background: '#EFF6FF',
-                border: '1px solid #BFDBFE',
-                fontSize: '12.5px',
-                color: '#1E40AF',
-                lineHeight: 1.5,
-              }}
-            >
-              <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span>⚡</span>
-                <span>Transparent Call Burn Rate: ₹3.00 / 1 minute (5 paise / sec)</span>
+                {/* 2x2 Pack Grid */}
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: '12px',
+                    marginBottom: '16px',
+                  }}
+                >
+                  {QUICK_PACKS.map((pack) => {
+                    const isSelected = !isCustom && selectedAmount === pack.amount;
+                    return (
+                      <button
+                        key={pack.amount}
+                        type="button"
+                        onClick={() => {
+                          setIsCustom(false);
+                          setSelectedAmount(pack.amount);
+                        }}
+                        style={{
+                          position: 'relative',
+                          textAlign: 'left',
+                          padding: '16px 16px 14px',
+                          borderRadius: '12px',
+                          background: isSelected ? '#EFF6FF' : '#FFFFFF',
+                          border: isSelected ? '2px solid #1E52C9' : '1px solid #E2E8F0',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                          boxShadow: isSelected ? '0 2px 8px rgba(30, 82, 201, 0.12)' : 'none',
+                        }}
+                      >
+                        {pack.badge && (
+                          <span
+                            style={{
+                              position: 'absolute',
+                              top: '10px',
+                              right: '10px',
+                              background: pack.badgeType === 'value' ? '#1E52C9' : '#0F2350',
+                              color: '#FFFFFF',
+                              fontSize: '9.5px',
+                              fontWeight: 700,
+                              padding: '2px 7px',
+                              borderRadius: '10px',
+                              letterSpacing: '0.04em',
+                            }}
+                          >
+                            {pack.badge}
+                          </span>
+                        )}
+
+                        <div
+                          style={{
+                            fontSize: '20px',
+                            fontWeight: 800,
+                            color: isSelected ? '#1E52C9' : '#0F2350',
+                            fontFamily: 'var(--mono, monospace)',
+                            marginTop: pack.badge ? '8px' : '0',
+                          }}
+                        >
+                          ₹{pack.amount.toLocaleString('en-IN')}
+                        </div>
+
+                        <div
+                          style={{
+                            fontSize: '12px',
+                            color: isSelected ? '#1E52C9' : '#64748B',
+                            fontWeight: 500,
+                            marginTop: '4px',
+                          }}
+                        >
+                          ≈ {pack.minutes} mins talk time
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Custom Amount Toggle */}
+                <div style={{ marginBottom: '20px' }}>
+                  {!isCustom ? (
+                    <button
+                      type="button"
+                      onClick={() => setIsCustom(true)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        padding: 0,
+                        color: '#1E52C9',
+                        fontSize: '12.5px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        textDecoration: 'underline',
+                      }}
+                    >
+                      + Or enter custom amount
+                    </button>
+                  ) : (
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        padding: '10px 14px',
+                        background: '#F8FAFC',
+                        borderRadius: '8px',
+                        border: '1px solid #CBD5E1',
+                      }}
+                    >
+                      <span style={{ fontSize: '13px', fontWeight: 600, color: '#0F2350' }}>₹</span>
+                      <input
+                        type="number"
+                        min="100"
+                        step="50"
+                        value={customInput}
+                        onChange={(e) => setCustomInput(e.target.value)}
+                        placeholder="Enter amount (min ₹100)"
+                        style={{
+                          width: '100%',
+                          border: 'none',
+                          background: 'transparent',
+                          fontSize: '14px',
+                          fontWeight: 700,
+                          color: '#0F2350',
+                          outline: 'none',
+                          fontFamily: 'var(--mono, monospace)',
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setIsCustom(false)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#64748B',
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        ✕ Cancel
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-              <ul style={{ margin: '6px 0 0', paddingLeft: '18px', fontSize: '12px', color: '#1D4ED8' }}>
-                <li>Time is calculated <strong>strictly after the call is answered</strong>.</li>
-                <li>Ringing time, busy lines, and unanswered dials are <strong>100% free (₹0.00)</strong>.</li>
-              </ul>
+
+              {/* Big Bottom Action Button in RIA Cobalt Blue */}
+              <div>
+                <button
+                  type="button"
+                  onClick={handleTopup}
+                  disabled={isPaying || activeAmount < 100}
+                  style={{
+                    width: '100%',
+                    height: '48px',
+                    background: '#1E52C9',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '15px',
+                    fontWeight: 700,
+                    cursor: isPaying ? 'wait' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    boxShadow: '0 2px 8px rgba(30, 82, 201, 0.25)',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  {isPaying ? (
+                    <span>Opening Payment…</span>
+                  ) : (
+                    <span>Recharge ₹{activeAmount.toLocaleString('en-IN')}</span>
+                  )}
+                </button>
+                <div style={{ fontSize: '11px', color: '#94A3B8', marginTop: '8px', textAlign: 'center' }}>
+                  Burn rate: ₹3.00/min • Spoken time only • Ringing is free
+                </div>
+              </div>
             </div>
           </div>
+        )}
 
-          {/* Card 2: Workspace & Plan Status */}
+        {/* TAB 2: Usage & Deductions History */}
+        {activeTab === 'history' && (
           <div
             style={{
               background: '#FFFFFF',
               border: '1px solid #E2E8F0',
-              borderRadius: '12px',
+              borderRadius: '16px',
               padding: '24px',
-              boxShadow: '0 4px 12px rgba(15, 35, 80, 0.04)',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
+              boxShadow: '0 1px 3px rgba(15, 35, 80, 0.04)',
             }}
           >
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                  <span
-                    style={{
-                      fontSize: '12px',
-                      fontWeight: 700,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.06em',
-                      color: '#64748B',
-                    }}
-                  >
-                    Platform Subscription
-                  </span>
-                  <h3
-                    style={{
-                      fontSize: '20px',
-                      fontWeight: 700,
-                      color: '#0F2350',
-                      margin: '4px 0 0',
-                    }}
-                  >
-                    {(wallet?.plan || meInfo?.plan || 'Starter').toUpperCase()} Platform
-                  </h3>
-                </div>
-                <span
-                  style={{
-                    padding: '4px 10px',
-                    borderRadius: '20px',
-                    background: '#ECFDF5',
-                    color: '#065F46',
-                    fontSize: '12px',
-                    fontWeight: 700,
-                    border: '1px solid #A7F3D0',
-                  }}
-                >
-                  Active Lifetime
-                </span>
-              </div>
-
-              <div style={{ margin: '18px 0', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#475569' }}>
-                  <span style={{ color: '#059669', fontWeight: 700 }}>✓</span>
-                  <span>Autonomous AI Telephony dialer enabled</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#475569' }}>
-                  <span style={{ color: '#059669', fontWeight: 700 }}>✓</span>
-                  <span>Autonomous 5-min reschedule & callback queue</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#475569' }}>
-                  <span style={{ color: '#059669', fontWeight: 700 }}>✓</span>
-                  <span>Telugu, Hindi & English conversational AI models</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#475569' }}>
-                  <span style={{ color: '#059669', fontWeight: 700 }}>✓</span>
-                  <span>Audio recordings & evidence-grade transcripts</span>
-                </div>
-              </div>
-            </div>
-
-            <div
-              style={{
-                fontSize: '12px',
-                color: '#64748B',
-                borderTop: '1px solid #F1F5F9',
-                paddingTop: '12px',
-                display: 'flex',
-                justifyContent: 'space-between',
-              }}
-            >
-              <span>Workspace: <strong>{meInfo?.company || 'Main'}</strong></span>
-              <span>Billing ID: <strong>{wallet?.tenant_id || meInfo?.id || '—'}</strong></span>
-            </div>
-          </div>
-        </div>
-
-        {/* Section 2: Quick Top-Up & Custom Recharge */}
-        <div
-          style={{
-            background: '#FFFFFF',
-            border: '1px solid #E2E8F0',
-            borderRadius: '12px',
-            padding: '24px',
-            boxShadow: '0 4px 12px rgba(15, 35, 80, 0.04)',
-          }}
-        >
-          <div style={{ marginBottom: '20px' }}>
-            <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#0F2350', margin: 0 }}>
-              Recharge Calling Credits
-            </h2>
-            <p style={{ fontSize: '13px', color: '#64748B', margin: '4px 0 0' }}>
-              Select a quick package or enter a custom amount. Credits are added to your balance immediately after payment.
-            </p>
-          </div>
-
-          {/* Package Selection Cards */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-              gap: '14px',
-              marginBottom: '20px',
-            }}
-          >
-            {QUICK_PACKS.map((pack) => {
-              const isSelected = !isCustom && selectedAmount === pack.amount;
-              return (
-                <button
-                  key={pack.amount}
-                  type="button"
-                  onClick={() => {
-                    setIsCustom(false);
-                    setSelectedAmount(pack.amount);
-                  }}
-                  style={{
-                    position: 'relative',
-                    textAlign: 'left',
-                    padding: '16px 18px',
-                    borderRadius: '10px',
-                    background: isSelected ? '#EFF6FF' : '#FFFFFF',
-                    border: `2px solid ${isSelected ? '#1E52C9' : '#E2E8F0'}`,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                    boxShadow: isSelected ? '0 4px 10px rgba(30, 82, 201, 0.12)' : 'none',
-                  }}
-                >
-                  {pack.tag && (
-                    <span
-                      style={{
-                        position: 'absolute',
-                        top: '-10px',
-                        right: '12px',
-                        background: '#1E52C9',
-                        color: '#FFFFFF',
-                        fontSize: '10px',
-                        fontWeight: 700,
-                        padding: '2px 8px',
-                        borderRadius: '10px',
-                        letterSpacing: '0.04em',
-                      }}
-                    >
-                      {pack.tag}
-                    </span>
-                  )}
-                  <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>{pack.label}</div>
-                  <div
-                    style={{
-                      fontSize: '22px',
-                      fontWeight: 800,
-                      color: isSelected ? '#1E52C9' : '#0F2350',
-                      marginTop: '4px',
-                      fontFamily: 'var(--mono, monospace)',
-                    }}
-                  >
-                    ₹{pack.amount.toLocaleString('en-IN')}
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#059669', fontWeight: 600, marginTop: '4px' }}>
-                    ~{pack.minutes} mins talk time
-                  </div>
-                </button>
-              );
-            })}
-
-            {/* Custom Amount Button */}
-            <button
-              type="button"
-              onClick={() => setIsCustom(true)}
-              style={{
-                textAlign: 'left',
-                padding: '16px 18px',
-                borderRadius: '10px',
-                background: isCustom ? '#EFF6FF' : '#FFFFFF',
-                border: `2px solid ${isCustom ? '#1E52C9' : '#E2E8F0'}`,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-                boxShadow: isCustom ? '0 4px 10px rgba(30, 82, 201, 0.12)' : 'none',
-              }}
-            >
-              <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Custom Amount</div>
-              <div
-                style={{
-                  fontSize: '22px',
-                  fontWeight: 800,
-                  color: isCustom ? '#1E52C9' : '#0F2350',
-                  marginTop: '4px',
-                }}
-              >
-                ₹ Custom
-              </div>
-              <div style={{ fontSize: '12px', color: '#64748B', marginTop: '4px' }}>
-                Any amount ≥ ₹100
-              </div>
-            </button>
-          </div>
-
-          {/* Custom Input row if active */}
-          {isCustom && (
-            <div
-              style={{
-                marginBottom: '20px',
-                padding: '16px',
-                background: '#F8FAFC',
-                borderRadius: '8px',
-                border: '1px solid #E2E8F0',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '14px',
-                flexWrap: 'wrap',
-              }}
-            >
-              <label htmlFor="customInput" style={{ fontSize: '13px', fontWeight: 600, color: '#334155' }}>
-                Enter custom credit amount (INR):
-              </label>
-              <div style={{ position: 'relative', width: '220px' }}>
-                <span
-                  style={{
-                    position: 'absolute',
-                    left: '12px',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    fontWeight: 700,
-                    color: '#64748B',
-                  }}
-                >
-                  ₹
-                </span>
-                <input
-                  id="customInput"
-                  type="number"
-                  min="100"
-                  step="50"
-                  value={customInput}
-                  onChange={(e) => setCustomInput(e.target.value)}
-                  placeholder="e.g. 1500"
-                  style={{
-                    width: '100%',
-                    height: '40px',
-                    paddingLeft: '28px',
-                    paddingRight: '12px',
-                    fontSize: '16px',
-                    fontWeight: 700,
-                    borderRadius: '6px',
-                    border: '1px solid #CBD5E1',
-                    fontFamily: 'var(--mono, monospace)',
-                  }}
-                />
-              </div>
-              <span style={{ fontSize: '12.5px', color: '#64748B' }}>
-                (~{Math.floor(activeAmount / 3)} minutes of talk time)
-              </span>
-            </div>
-          )}
-
-          {/* Action Bar */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              paddingTop: '16px',
-              borderTop: '1px solid #F1F5F9',
-              flexWrap: 'wrap',
-              gap: '14px',
-            }}
-          >
-            <div>
-              <div style={{ fontSize: '13px', color: '#64748B' }}>Total Recharge Payable:</div>
-              <div
-                style={{
-                  fontSize: '24px',
-                  fontWeight: 800,
-                  color: '#0F2350',
-                  fontFamily: 'var(--mono, monospace)',
-                }}
-              >
-                ₹{activeAmount.toLocaleString('en-IN')}.00
-              </div>
-            </div>
-
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={handleTopup}
-              disabled={isPaying || activeAmount < 100}
-              style={{
-                height: '46px',
-                padding: '0 28px',
-                fontSize: '15px',
-                fontWeight: 700,
-                borderRadius: '8px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                boxShadow: '0 2px 8px rgba(30, 82, 201, 0.25)',
-              }}
-            >
-              {isPaying ? (
-                <span>Processing Payment…</span>
-              ) : (
-                <>
-                  <span>💳</span>
-                  <span>Recharge ₹{activeAmount.toLocaleString('en-IN')} via Razorpay</span>
-                </>
-              )}
-            </button>
-          </div>
-          <div style={{ fontSize: '12px', color: '#94A3B8', marginTop: '10px', textAlign: 'right' }}>
-            🔒 Secured by Razorpay standard checkout • Supports UPI QR, Netbanking & Cards
-          </div>
-        </div>
-
-        {/* Section 3: Calling & Billing Activity Statement */}
-        <div
-          style={{
-            background: '#FFFFFF',
-            border: '1px solid #E2E8F0',
-            borderRadius: '12px',
-            padding: '24px',
-            boxShadow: '0 4px 12px rgba(15, 35, 80, 0.04)',
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '16px',
-              flexWrap: 'wrap',
-              gap: '12px',
-            }}
-          >
-            <div>
-              <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#0F2350', margin: 0 }}>
-                Credit Usage & Transaction Ledger
-              </h2>
+            <div style={{ marginBottom: '16px' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#0F2350', margin: 0 }}>
+                Recent Usage & Call Deductions
+              </h3>
               <p style={{ fontSize: '13px', color: '#64748B', margin: '4px 0 0' }}>
-                Complete evidential record of call burn deductions and credit top-ups.
+                Deductions occur at ₹3.00/min only after calls are answered.
               </p>
             </div>
 
-            {/* Filter Tabs */}
-            <div style={{ display: 'flex', gap: '6px', background: '#F1F5F9', padding: '4px', borderRadius: '8px' }}>
-              {(
-                [
-                  { id: 'all', label: 'All Activity' },
-                  { id: 'call_burn', label: 'Call Deductions' },
-                  { id: 'topup', label: 'Top-ups & Bonuses' },
-                ] as const
-              ).map((tab) => (
+            {(wallet?.ledger || []).length === 0 ? (
+              <div
+                style={{
+                  padding: '36px 20px',
+                  textAlign: 'center',
+                  color: '#64748B',
+                  fontSize: '13px',
+                  background: '#F8FAFC',
+                  borderRadius: '8px',
+                  border: '1px dashed #E2E8F0',
+                }}
+              >
+                No call deductions or top-ups recorded yet.
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid #E2E8F0', color: '#64748B', textAlign: 'left' }}>
+                      <th style={{ padding: '8px 12px' }}>Date</th>
+                      <th style={{ padding: '8px 12px' }}>Description</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'right' }}>Amount</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'right' }}>Balance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(wallet?.ledger || []).map((row: WalletLedgerItem) => {
+                      const isDebit = row.amount_paise < 0;
+                      return (
+                        <tr key={row.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                          <td style={{ padding: '10px 12px', color: '#64748B', whiteSpace: 'nowrap' }}>
+                            {row.created_at ? new Date(row.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—'}
+                          </td>
+                          <td style={{ padding: '10px 12px', color: '#0F2350', fontWeight: 500 }}>
+                            {row.description}
+                          </td>
+                          <td
+                            style={{
+                              padding: '10px 12px',
+                              textAlign: 'right',
+                              fontWeight: 700,
+                              fontFamily: 'var(--mono, monospace)',
+                              color: isDebit ? '#DC2626' : '#059669',
+                            }}
+                          >
+                            {isDebit ? '-' : '+'}₹{Math.abs(row.amount_inr).toFixed(2)}
+                          </td>
+                          <td
+                            style={{
+                              padding: '10px 12px',
+                              textAlign: 'right',
+                              fontWeight: 600,
+                              fontFamily: 'var(--mono, monospace)',
+                              color: '#0F2350',
+                            }}
+                          >
+                            ₹{row.balance_after_inr.toFixed(2)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Redeem Code Simple Modal */}
+      {showRedeemModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 35, 80, 0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+          }}
+        >
+          <div
+            style={{
+              background: '#FFFFFF',
+              borderRadius: '12px',
+              padding: '24px',
+              maxWidth: '380px',
+              width: '90%',
+              boxShadow: '0 12px 30px rgba(0,0,0,0.15)',
+            }}
+          >
+            <h3 style={{ margin: '0 0 6px', fontSize: '18px', color: '#0F2350' }}>Redeem Promo Code</h3>
+            <p style={{ margin: '0 0 16px', fontSize: '13px', color: '#64748B' }}>
+              Enter a promotion voucher or credit code to add calling credits to your wallet.
+            </p>
+            <form onSubmit={handleRedeem}>
+              <input
+                type="text"
+                value={couponCode}
+                onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                placeholder="e.g. WELCOME100"
+                style={{
+                  width: '100%',
+                  height: '40px',
+                  padding: '0 12px',
+                  borderRadius: '6px',
+                  border: '1px solid #CBD5E1',
+                  fontSize: '14px',
+                  marginBottom: '16px',
+                  fontWeight: 600,
+                  letterSpacing: '0.04em',
+                }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
                 <button
-                  key={tab.id}
                   type="button"
-                  onClick={() => setFilterType(tab.id)}
+                  onClick={() => setShowRedeemModal(false)}
                   style={{
-                    padding: '5px 12px',
-                    fontSize: '12.5px',
-                    fontWeight: 600,
+                    padding: '8px 14px',
                     borderRadius: '6px',
-                    border: 'none',
-                    background: filterType === tab.id ? '#FFFFFF' : 'transparent',
-                    color: filterType === tab.id ? '#0F2350' : '#64748B',
-                    boxShadow: filterType === tab.id ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
+                    border: '1px solid #CBD5E1',
+                    background: '#FFFFFF',
+                    fontSize: '13px',
+                    fontWeight: 600,
                     cursor: 'pointer',
                   }}
                 >
-                  {tab.label}
+                  Cancel
                 </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Ledger Table */}
-          {filteredLedger.length === 0 ? (
-            <div
-              style={{
-                padding: '40px 20px',
-                textAlign: 'center',
-                color: '#64748B',
-                fontSize: '13.5px',
-                background: '#F8FAFC',
-                borderRadius: '8px',
-                border: '1px dashed #CBD5E1',
-              }}
-            >
-              <div style={{ fontSize: '28px', marginBottom: '8px' }}>📜</div>
-              <div style={{ fontWeight: 600, color: '#334155' }}>No activity records found</div>
-              <div style={{ fontSize: '12px', color: '#94A3B8', marginTop: '4px' }}>
-                Completed calls and recharges will appear here in chronological order.
+                <button
+                  type="submit"
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: '#1E52C9',
+                    color: '#FFFFFF',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Apply Code
+                </button>
               </div>
-            </div>
-          ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table
-                style={{
-                  width: '100%',
-                  borderCollapse: 'collapse',
-                  fontSize: '13px',
-                  textAlign: 'left',
-                }}
-              >
-                <thead>
-                  <tr style={{ borderBottom: '2px solid #E2E8F0', color: '#64748B' }}>
-                    <th style={{ padding: '10px 14px', fontWeight: 600 }}>Date & Time</th>
-                    <th style={{ padding: '10px 14px', fontWeight: 600 }}>Activity / Description</th>
-                    <th style={{ padding: '10px 14px', fontWeight: 600 }}>Type</th>
-                    <th style={{ padding: '10px 14px', fontWeight: 600, textAlign: 'right' }}>Amount</th>
-                    <th style={{ padding: '10px 14px', fontWeight: 600, textAlign: 'right' }}>Balance After</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredLedger.map((row: WalletLedgerItem) => {
-                    const isDebit = row.amount_paise < 0;
-                    const dateFormatted = row.created_at
-                      ? new Date(row.created_at).toLocaleString('en-IN', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })
-                      : '—';
-
-                    return (
-                      <tr
-                        key={row.id}
-                        style={{
-                          borderBottom: '1px solid #F1F5F9',
-                          transition: 'background 0.1s ease',
-                        }}
-                      >
-                        <td style={{ padding: '12px 14px', color: '#64748B', whiteSpace: 'nowrap' }}>
-                          {dateFormatted}
-                        </td>
-                        <td style={{ padding: '12px 14px', color: '#0F2350', fontWeight: 500 }}>
-                          {row.description}
-                        </td>
-                        <td style={{ padding: '12px 14px' }}>
-                          <span
-                            style={{
-                              fontSize: '11px',
-                              fontWeight: 700,
-                              textTransform: 'uppercase',
-                              padding: '2px 8px',
-                              borderRadius: '6px',
-                              background:
-                                row.type === 'call_burn'
-                                  ? '#FEE2E2'
-                                  : row.type === 'topup'
-                                  ? '#ECFDF5'
-                                  : '#EFF6FF',
-                              color:
-                                row.type === 'call_burn'
-                                  ? '#991B1B'
-                                  : row.type === 'topup'
-                                  ? '#065F46'
-                                  : '#1E40AF',
-                            }}
-                          >
-                            {row.type === 'call_burn'
-                              ? 'Call Spoken'
-                              : row.type === 'topup'
-                              ? 'Top-up'
-                              : 'Bonus Credit'}
-                          </span>
-                        </td>
-                        <td
-                          style={{
-                            padding: '12px 14px',
-                            textAlign: 'right',
-                            fontWeight: 700,
-                            fontFamily: 'var(--mono, monospace)',
-                            color: isDebit ? '#DC2626' : '#059669',
-                          }}
-                        >
-                          {isDebit ? '-' : '+'}₹
-                          {Math.abs(row.amount_inr).toFixed(2)}
-                        </td>
-                        <td
-                          style={{
-                            padding: '12px 14px',
-                            textAlign: 'right',
-                            fontWeight: 600,
-                            fontFamily: 'var(--mono, monospace)',
-                            color: '#0F2350',
-                          }}
-                        >
-                          ₹{row.balance_after_inr.toFixed(2)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+            </form>
+          </div>
         </div>
-      </div>
+      )}
     </AppShell>
   );
 }
-

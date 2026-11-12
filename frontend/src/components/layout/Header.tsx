@@ -62,7 +62,7 @@ export default function Header() {
       <GlobalSearch />
 
       <div className="top-right">
-        {!isAdmin && (
+        {!isAdmin && !Boolean(meInfo?.is_superadmin) && role !== 'TA' && (
           <Link
             href="/billing"
             className="wallet-credit-badge"
