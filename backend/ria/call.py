@@ -15,7 +15,7 @@ from datetime import date
 from livekit import rtc
 from livekit.agents import Agent, AgentSession, JobContext, JobProcess, metrics
 from livekit.agents.voice import room_io
-from livekit.plugins import noise_cancellation, silero
+from livekit.plugins import silero
 
 from dialer import phone_e164, utc_now
 from ria import dates, recording, script, settings, voice
@@ -77,7 +77,12 @@ def noise_filter():
     prevent 404 license stalls); "bvc" or "nc" requires LiveKit Cloud."""
     mode = os.getenv("NOISE_CANCELLATION", "off").strip("\"' ").lower()
     if mode in ("bvc", "nc"):
-        return noise_cancellation.NC() if mode == "nc" else noise_cancellation.BVCTelephony()
+        try:
+            from livekit.plugins import noise_cancellation
+            return noise_cancellation.NC() if mode == "nc" else noise_cancellation.BVCTelephony()
+        except Exception as exc:
+            logger.warning("Could not load noise cancellation plugin: %s", exc)
+            return None
     return None
 
 
