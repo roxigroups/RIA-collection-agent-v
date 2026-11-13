@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { AppProvider } from '@/context/AppContext';
 import { THEME_SCRIPT } from '@/lib/theme';
@@ -6,6 +6,7 @@ import { THEME_SCRIPT } from '@/lib/theme';
 export const metadata: Metadata = {
   title: 'RIA — Roxy Intelligent AI Telecalling Agent',
   description: 'Enterprise vernacular AI telecalling, automated collections, PTP tracking, and dispute management for distribution intelligence.',
+  manifest: '/manifest.json',
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: 'any' },
@@ -14,6 +15,18 @@ export const metadata: Metadata = {
     apple: '/apple-icon.png',
   },
 };
+
+export const viewport: Viewport = {
+  themeColor: '#1E52C9',
+};
+
+const SW_REGISTER_SCRIPT = `
+  if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost')) {
+    window.addEventListener('load', function() {
+      navigator.serviceWorker.register('/sw.js').catch(function() {});
+    });
+  }
+`;
 
 export default function RootLayout({
   children,
@@ -24,6 +37,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: SW_REGISTER_SCRIPT }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
