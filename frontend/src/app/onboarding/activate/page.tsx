@@ -573,8 +573,16 @@ export default function OnboardingActivatePage() {
                     {isLoading ? 'Opening Razorpay...' : plan.buttonText}
                   </button>
 
-                  <div style={{ textAlign: 'center', fontSize: '11px', color: '#8593ad', marginTop: '8px' }}>
-                    Standard Web Checkout · UPI, Cards & Netbanking
+                  <div style={{ textAlign: 'center', marginTop: '10px' }}>
+                    <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#0f2350' }}>
+                      ₹4,999 /month
+                    </div>
+                    <div style={{ fontSize: '11.5px', color: '#53617c', marginTop: '2px', fontWeight: 500 }}>
+                      Inclusive of 18% GST. No additional GST at checkout.
+                    </div>
+                    <div style={{ fontSize: '10.5px', color: '#8593ad', marginTop: '4px' }}>
+                      Standard Web Checkout · UPI, Cards & Netbanking
+                    </div>
                   </div>
 
                   <ul className="act-feature-list">
