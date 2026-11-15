@@ -674,6 +674,36 @@ def admin_create_tenant():
         return jsonify({"error": str(exc)}), 500
 
 
+@app.delete("/api/admin/tenants/<tenant_id>")
+@superadmin_only
+def admin_delete_tenant(tenant_id: str):
+    try:
+        success = DB.delete_tenant(tenant_id)
+        if not success:
+            return jsonify({"error": "Tenant not found"}), 404
+        return jsonify({"success": True, "message": "Client tenant and all associated users deleted successfully"})
+    except ValueError as val_err:
+        return jsonify({"error": str(val_err)}), 400
+    except Exception as exc:
+        logger.exception("Failed to delete tenant %s: %s", tenant_id, exc)
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.post("/api/admin/tenants/<tenant_id>/require-payment")
+@superadmin_only
+def admin_require_tenant_payment(tenant_id: str):
+    try:
+        success = DB.set_tenant_billing_status(tenant_id, "pending_platform_fee")
+        if not success:
+            return jsonify({"error": "Tenant not found"}), 404
+        return jsonify({"success": True, "billing_status": "pending_platform_fee", "message": "Tenant status set to pending payment. User will be required to pay the monthly plan on next login."})
+    except ValueError as val_err:
+        return jsonify({"error": str(val_err)}), 400
+    except Exception as exc:
+        logger.exception("Failed to update billing status for %s: %s", tenant_id, exc)
+        return jsonify({"error": str(exc)}), 500
+
+
 @app.get("/api/admin/team")
 @superadmin_only
 def admin_get_team():

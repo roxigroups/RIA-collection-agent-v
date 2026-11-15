@@ -26,6 +26,8 @@ export default function AdminTenantsPage() {
   const [loading, setLoading] = useState(true);
   const [tenants, setTenants] = useState<AdminTenant[]>(INITIAL_TENANTS);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [tenantToDelete, setTenantToDelete] = useState<AdminTenant | null>(null);
+  const [actionBusyId, setActionBusyId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [adminName, setAdminName] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
@@ -48,6 +50,37 @@ export default function AdminTenantsPage() {
       setLoading(false);
     }
   }, []);
+
+  const handleConfirmDelete = async () => {
+    if (!tenantToDelete) return;
+    try {
+      setActionBusyId(tenantToDelete.id);
+      await api(`/admin/tenants/${tenantToDelete.id}`, { method: 'DELETE' });
+      showToast(`Deleted client tenant: ${tenantToDelete.name}`);
+      setTenantToDelete(null);
+      fetchTenants();
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to delete client tenant');
+    } finally {
+      setActionBusyId(null);
+    }
+  };
+
+  const handleRequirePayment = async (tenant: AdminTenant) => {
+    if (!confirm(`Require monthly plan payment for "${tenant.name}"?\n\nNext time their admin logs in, they will be redirected to the ₹4,999/mo activation checkout.`)) {
+      return;
+    }
+    try {
+      setActionBusyId(tenant.id);
+      await api(`/admin/tenants/${tenant.id}/require-payment`, { method: 'POST' });
+      showToast(`Payment required for: ${tenant.name}`);
+      fetchTenants();
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to set payment requirement');
+    } finally {
+      setActionBusyId(null);
+    }
+  };
 
   useEffect(() => {
     fetchTenants();
@@ -211,16 +244,20 @@ export default function AdminTenantsPage() {
                   <tr>
                     <th style={{ textAlign: 'left', padding: '10px 14px' }}>Company Name</th>
                     <th style={{ textAlign: 'left', padding: '10px 14px' }}>Admin Account</th>
+                    <th style={{ textAlign: 'center', padding: '10px 14px' }}>Billing Status</th>
                     <th style={{ textAlign: 'center', padding: '10px 14px' }}>Users</th>
                     <th style={{ textAlign: 'center', padding: '10px 14px' }}>Daily Quota</th>
                     <th style={{ textAlign: 'center', padding: '10px 14px' }}>Calls Today</th>
                     <th style={{ textAlign: 'right', padding: '10px 14px' }}>PTP Today</th>
-                    <th style={{ textAlign: 'right', padding: '10px 14px' }}>Onboarded</th>
+                    <th style={{ textAlign: 'center', padding: '10px 14px' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {tenants.map((t) => {
                     const cap = t.config?.rules?.cap || 100;
+                    const isPendingPayment = t.billing_status === 'pending_platform_fee';
+                    const isSystemTenant = t.id === 'TENANT-ROXY';
+
                     return (
                       <tr key={t.id} style={{ borderTop: '1px solid var(--line)' }}>
                         <td style={{ padding: '12px 14px', fontWeight: 700, fontSize: '13.5px' }}>
@@ -232,6 +269,37 @@ export default function AdminTenantsPage() {
                         <td style={{ padding: '12px 14px' }}>
                           <div style={{ fontWeight: 600 }}>{t.admin_name || 'Admin'}</div>
                           <div style={{ color: 'var(--t2)', fontSize: '11.5px' }}>{t.admin_email}</div>
+                        </td>
+                        <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                          {isPendingPayment ? (
+                            <span
+                              className="badge"
+                              style={{
+                                background: '#fef3c7',
+                                color: '#b45309',
+                                border: '1px solid #fde68a',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                              }}
+                              title="User has not paid monthly platform activation fee"
+                            >
+                              ⏳ Payment Pending
+                            </span>
+                          ) : (
+                            <span
+                              className="badge"
+                              style={{
+                                background: '#dcfce7',
+                                color: '#15803d',
+                                border: '1px solid #bbf7d0',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                              }}
+                              title="Active workspace"
+                            >
+                              ✅ Active Plan
+                            </span>
+                          )}
                         </td>
                         <td style={{ padding: '12px 14px', textAlign: 'center' }}>
                           <span className="badge" style={{ background: 'var(--hover)', color: 'var(--t1)', fontSize: '11px' }}>
@@ -249,8 +317,43 @@ export default function AdminTenantsPage() {
                         <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: '#22c55e' }}>
                           {inr(t.ptp_amount_today || 0)}
                         </td>
-                        <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--t2)', fontSize: '11px' }}>
-                          {t.created_at ? new Date(t.created_at).toLocaleDateString() : '—'}
+                        <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                          {isSystemTenant ? (
+                            <span style={{ fontSize: '11px', color: 'var(--t2)', fontStyle: 'italic' }}>
+                              🛡️ System Tenant
+                            </span>
+                          ) : (
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                              {!isPendingPayment && (
+                                <button
+                                  type="button"
+                                  className="btn btn-outline btn-xs"
+                                  onClick={() => handleRequirePayment(t)}
+                                  disabled={actionBusyId === t.id}
+                                  title="Force client to complete monthly payment on next login"
+                                  style={{ fontSize: '10.5px', padding: '3px 8px', fontWeight: 600 }}
+                                >
+                                  💳 Require Payment
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                className="btn btn-outline btn-xs"
+                                onClick={() => setTenantToDelete(t)}
+                                disabled={actionBusyId === t.id}
+                                title="Permanently delete client and all users"
+                                style={{
+                                  fontSize: '10.5px',
+                                  padding: '3px 8px',
+                                  color: '#dc2626',
+                                  borderColor: '#fca5a5',
+                                  fontWeight: 600,
+                                }}
+                              >
+                                🗑️ Delete
+                              </button>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     );
@@ -419,6 +522,89 @@ export default function AdminTenantsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Delete Client Confirmation Modal */}
+      {tenantToDelete && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.55)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '16px',
+          }}
+          onClick={() => setTenantToDelete(null)}
+        >
+          <div
+            className="card"
+            style={{
+              width: '100%',
+              maxWidth: '460px',
+              padding: '24px',
+              background: 'var(--surface)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '14px',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
+              borderRadius: '12px',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '24px' }}>⚠️</span>
+              <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: '#dc2626' }}>
+                Delete Client Tenant?
+              </h3>
+            </div>
+
+            <p style={{ margin: 0, fontSize: '13px', color: 'var(--t1)', lineHeight: 1.5 }}>
+              Are you sure you want to permanently delete <strong>{tenantToDelete.name}</strong> (<code>{tenantToDelete.id}</code>)?
+            </p>
+
+            <div
+              style={{
+                background: '#fef2f2',
+                border: '1px solid #fee2e2',
+                color: '#b91c1c',
+                padding: '12px',
+                borderRadius: '8px',
+                fontSize: '12px',
+                lineHeight: 1.45,
+              }}
+            >
+              ⚠️ <strong>Warning:</strong> This will permanently delete:
+              <ul style={{ margin: '6px 0 0', paddingLeft: '18px' }}>
+                <li>Admin user (<strong>{tenantToDelete.admin_email}</strong>) and all client accounts</li>
+                <li>All retailer contact records, batches, and call logs</li>
+                <li>All telephony wallet balances and ledger transactions</li>
+              </ul>
+              This action cannot be undone.
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '6px' }}>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => setTenantToDelete(null)}
+                disabled={actionBusyId !== null}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger btn-sm"
+                onClick={handleConfirmDelete}
+                disabled={actionBusyId !== null}
+                style={{ background: '#dc2626', color: '#ffffff', borderColor: '#dc2626', fontWeight: 600 }}
+              >
+                {actionBusyId ? 'Deleting...' : 'Yes, Delete Permanently'}
+              </button>
+            </div>
           </div>
         </div>
       )}

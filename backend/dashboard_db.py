@@ -1351,6 +1351,7 @@ class Dashboard(DatabaseDriver):
             rows = conn.execute(
                 """
                 SELECT t.id, t.name, t.created_at, t.config,
+                    COALESCE(t.billing_status, 'active') AS billing_status,
                     COALESCE(u.user_count, 0) AS user_count,
                     COALESCE(c.calls_today, 0) AS calls_today,
                     COALESCE(c.ptp_amount_today, 0) AS ptp_amount_today,
@@ -1385,6 +1386,7 @@ class Dashboard(DatabaseDriver):
                 "ptp_amount_today": float(r["ptp_amount_today"]),
                 "admin_email": r["admin_email"] or "",
                 "admin_name": r["admin_name"] or "",
+                "billing_status": r["billing_status"] or "active",
                 "config": r["config"] or {},
             }
             for r in rows
@@ -1436,3 +1438,33 @@ class Dashboard(DatabaseDriver):
             "admin_email": admin_email.strip().lower(),
             "admin_name": admin_name.strip(),
         }
+
+    def delete_tenant(self, tenant_id: str) -> bool:
+        """Permanently deletes a client tenant and cascades to all its users, wallets, and records."""
+        if not tenant_id:
+            return False
+        clean_id = tenant_id.strip()
+        if clean_id in ("TENANT-ROXY", "default"):
+            raise ValueError("The primary system tenant (TENANT-ROXY) cannot be deleted.")
+        with self.connection() as conn:
+            t = conn.execute("SELECT id, name FROM tenants WHERE id = %s", (clean_id,)).fetchone()
+            if not t:
+                return False
+            # Foreign keys (users, tenant_wallets, wallet_ledger, retailers, outbound_calls) all have ON DELETE CASCADE
+            conn.execute("DELETE FROM tenants WHERE id = %s", (clean_id,))
+            return True
+
+    def set_tenant_billing_status(self, tenant_id: str, status: str) -> bool:
+        """Sets a tenant's platform fee billing status ('active', 'pending_platform_fee', 'suspended')."""
+        if not tenant_id or not status:
+            return False
+        clean_id = tenant_id.strip()
+        valid = ("active", "pending_platform_fee", "suspended")
+        if status not in valid:
+            raise ValueError(f"Invalid billing status: {status}")
+        with self.connection() as conn:
+            row = conn.execute(
+                "UPDATE tenants SET billing_status = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s RETURNING id",
+                (status, clean_id),
+            ).fetchone()
+            return bool(row)

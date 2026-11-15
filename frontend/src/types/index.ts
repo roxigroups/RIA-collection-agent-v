@@ -418,6 +418,7 @@ export interface AdminTenant {
   ptp_amount_today: number;
   admin_email: string;
   admin_name: string;
+  billing_status?: 'active' | 'pending_platform_fee' | 'suspended';
   config?: Record<string, any>;
 }
 

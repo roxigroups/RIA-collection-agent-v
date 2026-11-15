@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Script from 'next/script';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/context/AppContext';
 import { api, ApiError } from '@/lib/api';
@@ -13,10 +14,11 @@ declare global {
 }
 
 interface PlanConfig {
-  id: 'starter' | 'pro';
+  id: 'starter';
   name: string;
   tagline: string;
   price: string;
+  pricePeriod: string;
   priceAmount: number;
   popular?: boolean;
   buttonText: string;
@@ -27,42 +29,26 @@ interface PlanConfig {
 const PLANS: PlanConfig[] = [
   {
     id: 'starter',
-    name: 'Starter Platform',
-    tagline: 'Ideal for growing distributors automating overdue collections',
+    name: 'RIA Monthly Platform Subscription',
+    tagline: 'Complete autonomous multilingual voice recovery & collection workspace for distributors',
     price: '₹4,999',
+    pricePeriod: '/ month · billed monthly',
     priceAmount: 499900,
-    buttonText: 'Activate Starter Workspace',
-    featuresHeader: 'Everything you need to automate recovery:',
+    popular: true,
+    buttonText: 'Activate Monthly Workspace — ₹4,999/mo',
+    featuresHeader: 'Everything included in your monthly subscription:',
     features: [
       'Dedicated tenant workspace & provisioned caller ID',
-      '1 concurrent outbound dialing line',
-      'Core Multilingual Voice AI (Hindi, Telugu, English)',
-      'Autonomous Promise-to-Pay (PTP) extraction & ledger',
+      'Autonomous Multilingual Voice AI (Telugu, Hindi, Kannada, Tamil, Marathi & English)',
+      'Promise-to-Pay (PTP) extraction, automatic tracking & ledger',
+      '₹300 in free voice calling credits included to start dialing',
       'Real-time call transcripts & sentiment analysis',
-      'Excel / CSV bulk call sheet imports',
-      'Automated scheduled callbacks & retry engine',
-      'Standard Email & WhatsApp payment link reminders',
-      'Up to 2 team member seats',
-    ],
-  },
-  {
-    id: 'pro',
-    name: 'Pro Platform',
-    tagline: 'High-volume recovery with multi-line dialing and full language pack',
-    price: '₹7,999',
-    priceAmount: 799900,
-    popular: true,
-    buttonText: 'Activate Pro Workspace',
-    featuresHeader: 'Everything in Starter, plus:',
-    features: [
-      'Multi-line dialer concurrency (up to 4 Bangalore lines simultaneously)',
-      'Full 11-Language Pack (Kannada, Tamil, Marathi, Gujarati, Bengali, etc.)',
-      'High-fidelity Audio Call Recordings (listen & download MP3s)',
-      'Smart Dunning: Dynamic tone control (Friendly to Firm recovery)',
-      'Custom business scripts & retailer dispute ticketing',
-      'Advanced recovery analytics & daily reconciliation',
-      'Up to 10 team member seats with Role-Based Access Control',
-      'Priority SLA support & dedicated onboarding guidance',
+      'Excel / CSV bulk call sheet imports & campaign manager',
+      'Automated scheduled callbacks & smart retry queue',
+      'WhatsApp payment link dispatch with instant UPI integration',
+      'Dispute escalation ticketing & retailer ledger records',
+      'Multi-user team access with distributor role permissions',
+      'Full SLA support & ongoing AI model updates',
     ],
   },
 ];
@@ -70,7 +56,7 @@ const PLANS: PlanConfig[] = [
 export default function OnboardingActivatePage() {
   const router = useRouter();
   const { meInfo, isSuperAdmin, showToast } = useApp();
-  const [loadingPlan, setLoadingPlan] = useState<'starter' | 'pro' | null>(null);
+  const [loadingPlan, setLoadingPlan] = useState<'starter' | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
 
   // If already active or superadmin, route straight to dashboard
@@ -305,29 +291,29 @@ export default function OnboardingActivatePage() {
 
         .act-cards-grid {
           margin-top: 36px;
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-          gap: 24px;
+          display: flex;
+          justify-content: center;
           width: 100%;
-          max-width: 860px;
+          max-width: 580px;
         }
 
         .act-card {
+          width: 100%;
           position: relative;
           background: #ffffff;
-          border: 1px solid #e2e8f2;
-          border-radius: 16px;
-          padding: 32px 28px;
+          border: 2px solid #1e52c9;
+          border-radius: 20px;
+          padding: 36px 32px;
           display: flex;
           flex-direction: column;
           justify-content: space-between;
-          box-shadow: 0 1px 3px rgba(15, 35, 80, 0.05), 0 8px 24px rgba(15, 35, 80, 0.06);
+          box-shadow: 0 4px 16px rgba(30, 82, 201, 0.12), 0 20px 40px rgba(15, 35, 80, 0.08);
           transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
 
         .act-card:hover {
           transform: translateY(-2px);
-          box-shadow: 0 4px 6px rgba(15, 35, 80, 0.06), 0 14px 32px rgba(15, 35, 80, 0.09);
+          box-shadow: 0 8px 24px rgba(30, 82, 201, 0.16), 0 24px 48px rgba(15, 35, 80, 0.12);
         }
 
         .act-card.popular {
@@ -448,7 +434,14 @@ export default function OnboardingActivatePage() {
       {/* Header */}
       <header className="act-light-header">
         <div className="act-logo-box">
-          <div className="act-logo-icon">R</div>
+          <Image
+            src="/logo-ria-official.png"
+            alt="RIA AI Platform"
+            width={76}
+            height={44}
+            style={{ objectFit: 'contain' }}
+            priority
+          />
           <div>
             <div className="act-title-text">
               RIA AI AGENT
@@ -486,12 +479,12 @@ export default function OnboardingActivatePage() {
       <main className="act-hero">
         <div className="act-badge-main">
           <span className="act-badge-dot" />
-          One-Time Platform Setup · Lifetime Access
+          Monthly Platform Subscription · Full Platform Access
         </div>
 
-        <h1 className="act-h1">Plans that grow with you</h1>
+        <h1 className="act-h1">Activate Your Voice AI Workspace</h1>
         <p className="act-sub">
-          Activate your distribution workspace with autonomous multilingual voice recovery. Both plans include{' '}
+          Supercharge debt collections with autonomous multilingual voice recovery. Your monthly subscription includes{' '}
           <strong style={{ color: '#1e52c9' }}>₹300 in free voice calling credits</strong> to start dialing immediately.
         </p>
 
@@ -527,48 +520,48 @@ export default function OnboardingActivatePage() {
           {PLANS.map((plan) => {
             const isLoading = loadingPlan === plan.id;
             return (
-              <div key={plan.id} className={`act-card ${plan.popular ? 'popular' : ''}`}>
-                {plan.popular && <div className="act-popular-tag">Most Popular</div>}
+              <div key={plan.id} className="act-card popular">
+                <div className="act-popular-tag">Official Platform Plan</div>
 
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
-                      <h2 style={{ fontSize: '20px', fontWeight: 800, margin: 0, color: '#0f2350' }}>{plan.name}</h2>
-                      <p style={{ fontSize: '12.5px', color: '#53617c', margin: '4px 0 0', minHeight: '34px' }}>
+                      <h2 style={{ fontSize: '22px', fontWeight: 800, margin: 0, color: '#0f2350' }}>{plan.name}</h2>
+                      <p style={{ fontSize: '13px', color: '#53617c', margin: '6px 0 0', minHeight: '34px' }}>
                         {plan.tagline}
                       </p>
                     </div>
                     <div
                       style={{
-                        width: '40px',
-                        height: '40px',
-                        borderRadius: '10px',
-                        background: plan.popular ? '#e8eefc' : '#f4f6fa',
-                        color: plan.popular ? '#1e52c9' : '#53617c',
+                        width: '44px',
+                        height: '44px',
+                        borderRadius: '12px',
+                        background: '#e8eefc',
+                        color: '#1e52c9',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        fontSize: '18px',
+                        fontSize: '20px',
                       }}
                     >
-                      {plan.popular ? '⚡' : '🚀'}
+                      ⚡
                     </div>
                   </div>
 
                   <div className="act-price-row">
                     <span className="act-price-val">{plan.price}</span>
-                    <span style={{ fontSize: '12px', color: '#8593ad' }}>one-time · lifetime</span>
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: '#53617c' }}>{plan.pricePeriod}</span>
                   </div>
 
                   <div className="act-bonus-pill">
                     <span>🎁</span>
-                    <span>Includes ₹300 Free Calling Credits</span>
+                    <span>Includes ₹300 Free Calling Credits Every Month</span>
                   </div>
 
                   <button
                     onClick={() => handleSelectPlan(plan)}
-                    disabled={isLoading || (loadingPlan !== null && !isLoading)}
-                    className={`act-btn ${plan.popular ? 'primary' : 'secondary'}`}
+                    disabled={isLoading}
+                    className="act-btn primary"
                   >
                     {isLoading ? 'Opening Razorpay...' : plan.buttonText}
                   </button>
