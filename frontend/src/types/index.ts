@@ -327,6 +327,14 @@ export interface RecoverySummaryData {
   invoiceAccounts: number;
   promisedMtd: number;
   pipeline: number;
+  uploadedTodayAmount?: number;
+  uploadedTodayCount?: number;
+  uploadedTodayAccounts?: number;
+  ptpTodayAmount?: number;
+  ptpTodayCount?: number;
+  ptpTodayAccounts?: number;
+  remainingTodayAmount?: number;
+  remainingTodayCount?: number;
 }
 
 export interface Me {

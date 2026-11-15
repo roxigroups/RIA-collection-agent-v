@@ -145,7 +145,20 @@ const EMPTY_CONFIG: AppConfig = {
   rules: { cap: 3, starthour: '08:00', endhour: '19:00', cooldown: 5, ptpwindow: 7, escalate: 2, blockdispute: true, blockholiday: true },
   general: { tenant: '', gstin: '', callerid: '', audiodays: 90, auditdays: 365, webhook: '', escalateemail: '', escalatesms: '' },
 };
-const EMPTY_SUMMARY: RecoverySummaryData = { invoiced: 0, invoiceAccounts: 0, promisedMtd: 0, pipeline: 0 };
+const EMPTY_SUMMARY: RecoverySummaryData = {
+  invoiced: 0,
+  invoiceAccounts: 0,
+  promisedMtd: 0,
+  pipeline: 0,
+  uploadedTodayAmount: 0,
+  uploadedTodayCount: 0,
+  uploadedTodayAccounts: 0,
+  ptpTodayAmount: 0,
+  ptpTodayCount: 0,
+  ptpTodayAccounts: 0,
+  remainingTodayAmount: 0,
+  remainingTodayCount: 0,
+};
 
 const AppContext = createContext<AppContextType | null>(null);
 

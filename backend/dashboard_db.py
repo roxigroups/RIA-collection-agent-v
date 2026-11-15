@@ -635,34 +635,100 @@ class Dashboard(DatabaseDriver):
 
     @staticmethod
     def _summary(conn, tenant_id: str, ptps: list[dict]) -> dict:
-        """Dashboard tiles. Payments aren't recorded yet, so recovery is measured
-        by what customers promised on RIA's calls."""
-        # The tiles count only invoices from CSV batches still on the Calls page, and the
-        # promises made on calls about them; deleting a batch drops all of its figures
-        batch = conn.execute(
+        """Dashboard tiles:
+        Card 1: Uploaded Today (Rupee value + invoice count)
+        Card 2: PTP Secured Today (Rupee value + retailers count)
+        Card 3: Remaining Today (Rupee value + pending count)
+        """
+        # 1. Invoices uploaded today in IST
+        today_uploaded = conn.execute(
             """
-            WITH cur AS (
-                SELECT DISTINCT invoice_id FROM outbound_calls
-                WHERE tenant_id = %(t)s AND batch_id IS NOT NULL AND invoice_id IS NOT NULL
-            ), cur_calls AS (
-                SELECT c.id, c.ptp_amount, c.outcome, c.created_at FROM calls c
-                JOIN outbound_calls o ON o.id = c.outbound_call_id
-                WHERE c.tenant_id = %(t)s AND o.invoice_id IN (SELECT invoice_id FROM cur)
-            )
-            SELECT (SELECT COALESCE(SUM(amount), 0) FROM invoices WHERE id IN (SELECT invoice_id FROM cur)) AS invoiced,
-                   (SELECT COUNT(DISTINCT retailer_id) FROM invoices WHERE id IN (SELECT invoice_id FROM cur)) AS accounts,
-                   (SELECT COALESCE(SUM(ptp_amount), 0) FROM cur_calls WHERE outcome = 'PROMISE-TO-PAY'
-                        AND created_at >= date_trunc('month', CURRENT_DATE)) AS promised,
-                   (SELECT COALESCE(array_agg(p.id), '{}') FROM ptp_commitments p
-                        WHERE p.source_call_id IN (SELECT id FROM cur_calls)) AS ptp_ids
+            SELECT
+                COALESCE(SUM(amount), 0) AS uploaded_amount,
+                COUNT(id) AS uploaded_count,
+                COUNT(DISTINCT retailer_id) AS uploaded_accounts
+            FROM outbound_calls
+            WHERE tenant_id = %(t)s
+              AND batch_id IS NOT NULL
+              AND attempt = 1
+              AND (created_at AT TIME ZONE 'Asia/Kolkata')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date
             """,
             {"t": tenant_id},
         ).fetchone()
-        ptp_ids = set(batch["ptp_ids"])
+
+        today_invoices = conn.execute(
+            """
+            SELECT
+                COALESCE(SUM(i.amount), 0) AS inv_amount,
+                COUNT(i.id) AS inv_count,
+                COUNT(DISTINCT i.retailer_id) AS inv_accounts
+            FROM invoices i
+            JOIN retailers r ON r.id = i.retailer_id
+            WHERE r.tenant_id = %(t)s
+              AND (i.created_at AT TIME ZONE 'Asia/Kolkata')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date
+            """,
+            {"t": tenant_id},
+        ).fetchone()
+
+        uploaded_amount = max(float(today_uploaded["uploaded_amount"]), float(today_invoices["inv_amount"]))
+        uploaded_count = max(int(today_uploaded["uploaded_count"]), int(today_invoices["inv_count"]))
+        uploaded_accounts = max(int(today_uploaded["uploaded_accounts"]), int(today_invoices["inv_accounts"]))
+
+        # 2. PTP commitments secured today in IST
+        today_calls_ptp = conn.execute(
+            """
+            SELECT
+                COALESCE(SUM(COALESCE(ptp_amount, 0)), 0) AS ptp_amount,
+                COUNT(id) AS ptp_count,
+                COUNT(DISTINCT retailer_id) AS ptp_accounts
+            FROM calls
+            WHERE tenant_id = %(t)s
+              AND outcome IN ('PROMISE-TO-PAY', 'PROMISE_TO_PAY')
+              AND (created_at AT TIME ZONE 'Asia/Kolkata')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date
+            """,
+            {"t": tenant_id},
+        ).fetchone()
+
+        today_outbound_ptp = conn.execute(
+            """
+            SELECT
+                COALESCE(SUM(COALESCE(promised_amount, amount, 0)), 0) AS ptp_amount,
+                COUNT(id) AS ptp_count,
+                COUNT(DISTINCT retailer_id) AS ptp_accounts
+            FROM outbound_calls
+            WHERE tenant_id = %(t)s
+              AND outcome IN ('PROMISE-TO-PAY', 'PROMISE_TO_PAY')
+              AND (
+                  (ended_at IS NOT NULL AND (ended_at AT TIME ZONE 'Asia/Kolkata')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date)
+                  OR
+                  (ended_at IS NULL AND (created_at AT TIME ZONE 'Asia/Kolkata')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date)
+              )
+            """,
+            {"t": tenant_id},
+        ).fetchone()
+
+        ptp_amount = max(float(today_calls_ptp["ptp_amount"]), float(today_outbound_ptp["ptp_amount"]))
+        ptp_count = max(int(today_calls_ptp["ptp_count"]), int(today_outbound_ptp["ptp_count"]))
+        ptp_accounts = max(int(today_calls_ptp["ptp_accounts"]), int(today_outbound_ptp["ptp_accounts"]))
+
+        # 3. Remaining invoices today
+        remaining_amount = max(0.0, uploaded_amount - ptp_amount)
+        remaining_count = max(0, uploaded_count - ptp_count)
+
         return {
-            "invoiced": float(batch["invoiced"]), "invoiceAccounts": batch["accounts"],
-            "promisedMtd": float(batch["promised"]),
-            "pipeline": sum(p["amt"] for p in ptps if p["st"] in ("due", "upcoming") and p["id"] in ptp_ids),
+            "uploadedTodayAmount": uploaded_amount,
+            "uploadedTodayCount": uploaded_count,
+            "uploadedTodayAccounts": uploaded_accounts,
+            "ptpTodayAmount": ptp_amount,
+            "ptpTodayCount": ptp_count,
+            "ptpTodayAccounts": ptp_accounts,
+            "remainingTodayAmount": remaining_amount,
+            "remainingTodayCount": remaining_count,
+            # Backwards compatibility:
+            "invoiced": uploaded_amount,
+            "invoiceAccounts": uploaded_count,
+            "promisedMtd": ptp_amount,
+            "pipeline": remaining_amount,
         }
 
     @staticmethod
