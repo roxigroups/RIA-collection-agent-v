@@ -55,9 +55,16 @@ const PLANS: PlanConfig[] = [
 
 export default function OnboardingActivatePage() {
   const router = useRouter();
-  const { meInfo, isSuperAdmin, showToast } = useApp();
+  const { meInfo, isSuperAdmin, showToast, logout } = useApp();
   const [loadingPlan, setLoadingPlan] = useState<'starter' | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
+  const [signingOut, setSigningOut] = useState(false);
+
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    await logout();
+    window.location.href = '/login';
+  };
 
   // If already active or superadmin, route straight to dashboard
   useEffect(() => {
@@ -458,19 +465,19 @@ export default function OnboardingActivatePage() {
             </span>
           )}
           <button
-            onClick={() => {
-              window.location.href = '/login';
-            }}
+            type="button"
+            onClick={handleSignOut}
+            disabled={signingOut}
             style={{
               background: 'transparent',
               border: 0,
               color: '#1e52c9',
-              cursor: 'pointer',
+              cursor: signingOut ? 'wait' : 'pointer',
               fontWeight: 600,
               textDecoration: 'underline',
             }}
           >
-            Sign out
+            {signingOut ? 'Signing out...' : 'Sign out'}
           </button>
         </div>
       </header>

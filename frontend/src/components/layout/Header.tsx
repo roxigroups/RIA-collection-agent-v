@@ -158,9 +158,9 @@ export default function Header() {
         <button
           type="button"
           className="btn btn-ghost btn-sm"
-          onClick={() => {
-            logout();
-            router.replace('/login');
+          onClick={async () => {
+            await logout();
+            window.location.href = '/login';
           }}
         >
           Sign out

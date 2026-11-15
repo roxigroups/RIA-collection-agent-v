@@ -67,7 +67,7 @@ interface AppContextType {
   authChecked: boolean;
   // returns { error, user }
   login: (user: string, pass: string) => Promise<{ error: string | null; user: Me | null }>;
-  logout: () => void;
+  logout: () => Promise<void> | void;
   meInfo: Me | null;
   isSuperAdmin: boolean;
   portalMode: 'admin' | 'regular';
@@ -309,8 +309,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const logout = () => {
-    api('/logout', { body: {} }).finally(signedOut);
+  const logout = async () => {
+    signedOut();
+    try {
+      await api('/logout', { body: {} });
+    } catch {
+      // ignore
+    }
   };
 
   const openModal = (title: string, body: ReactNode, footer?: ReactNode, wide = false) => {
