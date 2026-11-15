@@ -28,6 +28,7 @@ export default function AdminTenantsPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [tenantToDelete, setTenantToDelete] = useState<AdminTenant | null>(null);
   const [actionBusyId, setActionBusyId] = useState<string | null>(null);
+  const [billingStatus, setBillingStatus] = useState<'active' | 'pending_platform_fee'>('active');
   const [name, setName] = useState('');
   const [adminName, setAdminName] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
@@ -82,6 +83,22 @@ export default function AdminTenantsPage() {
     }
   };
 
+  const handleActivatePlan = async (tenant: AdminTenant) => {
+    if (!confirm(`Activate plan for "${tenant.name}"?\n\nThis unlocks their workspace immediately with ₹300 welcome calling credits, without requiring online payment.`)) {
+      return;
+    }
+    try {
+      setActionBusyId(tenant.id);
+      await api(`/admin/tenants/${tenant.id}/activate-plan`, { method: 'POST' });
+      showToast(`Activated workspace for: ${tenant.name}`);
+      fetchTenants();
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to activate plan');
+    } finally {
+      setActionBusyId(null);
+    }
+  };
+
   useEffect(() => {
     fetchTenants();
   }, [fetchTenants]);
@@ -103,6 +120,7 @@ export default function AdminTenantsPage() {
       ptp_amount_today: 0,
       admin_name: adminName.trim() || name.trim(),
       admin_email: adminEmail.trim(),
+      billing_status: billingStatus,
       config: { rules: { cap: dailyCap, language } },
     };
 
@@ -114,19 +132,21 @@ export default function AdminTenantsPage() {
           admin_name: adminName.trim() || name.trim(),
           admin_email: adminEmail.trim(),
           password: password.trim(),
+          billing_status: billingStatus,
           rules: {
             daily_cap: dailyCap,
             language,
           },
         },
       });
-      showToast(`Onboarded client: ${name}`);
+      showToast(`Onboarded client: ${name} (${billingStatus === 'active' ? 'Active' : 'Payment Pending'})`);
       setShowAddModal(false);
       setName('');
       setAdminName('');
       setAdminEmail('');
       setPassword('');
       setDailyCap(100);
+      setBillingStatus('active');
       fetchTenants();
     } catch {
       // Client-side fallback mutation so UI button works seamlessly
@@ -138,6 +158,7 @@ export default function AdminTenantsPage() {
       setAdminEmail('');
       setPassword('');
       setDailyCap(100);
+      setBillingStatus('active');
     } finally {
       setBusy(false);
     }
@@ -324,7 +345,7 @@ export default function AdminTenantsPage() {
                             </span>
                           ) : (
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                              {!isPendingPayment && (
+                              {!isPendingPayment ? (
                                 <button
                                   type="button"
                                   className="btn btn-outline btn-xs"
@@ -334,6 +355,24 @@ export default function AdminTenantsPage() {
                                   style={{ fontSize: '10.5px', padding: '3px 8px', fontWeight: 600 }}
                                 >
                                   💳 Require Payment
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="btn btn-outline btn-xs"
+                                  onClick={() => handleActivatePlan(t)}
+                                  disabled={actionBusyId === t.id}
+                                  title="Activate workspace immediately with ₹300 welcome credits"
+                                  style={{
+                                    fontSize: '10.5px',
+                                    padding: '3px 8px',
+                                    color: '#15803d',
+                                    borderColor: '#bbf7d0',
+                                    background: '#f0fdf4',
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  ✅ Activate Plan
                                 </button>
                               )}
                               <button
@@ -501,6 +540,50 @@ export default function AdminTenantsPage() {
                     <option value="Hindi">Hindi (हिंदी)</option>
                     <option value="English">English</option>
                   </select>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
+                  Platform Activation Status
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div
+                    onClick={() => setBillingStatus('active')}
+                    style={{
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      border: billingStatus === 'active' ? '2px solid var(--blue)' : '1px solid var(--line)',
+                      background: billingStatus === 'active' ? 'rgba(59, 130, 246, 0.08)' : 'var(--surface)',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <div style={{ fontWeight: 700, fontSize: '12px', color: billingStatus === 'active' ? 'var(--blue)' : 'var(--t1)' }}>
+                      ✅ Active (Free / Demo)
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--t2)', marginTop: '2px' }}>
+                      Immediate dashboard access + ₹300 credits.
+                    </div>
+                  </div>
+                  <div
+                    onClick={() => setBillingStatus('pending_platform_fee')}
+                    style={{
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      border: billingStatus === 'pending_platform_fee' ? '2px solid #b45309' : '1px solid var(--line)',
+                      background: billingStatus === 'pending_platform_fee' ? 'rgba(245, 158, 11, 0.08)' : 'var(--surface)',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <div style={{ fontWeight: 700, fontSize: '12px', color: billingStatus === 'pending_platform_fee' ? '#b45309' : 'var(--t1)' }}>
+                      💳 Require Payment
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--t2)', marginTop: '2px' }}>
+                      Redirects to ₹4,999/mo plan on login.
+                    </div>
+                  </div>
                 </div>
               </div>
 

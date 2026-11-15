@@ -153,6 +153,7 @@ export const SUPERADMIN_EMAILS = [
   'karnativikas1612@gmail.com',
   'gyanvardhan186@gmail.com',
   'superadmin@roxygroup.in',
+  'vikas.ria@roxygroup.in',
 ];
 
 export const checkIsSuperAdmin = (user?: Me | null): boolean => {

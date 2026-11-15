@@ -1166,6 +1166,7 @@ class Dashboard(DatabaseDriver):
         "karnativikas1612@gmail.com",
         "gyanvardhan186@gmail.com",
         "superadmin@roxygroup.in",
+        "vikas.ria@roxygroup.in",
     ))
 
     def is_superadmin(self, email: str | None) -> bool:
@@ -1392,7 +1393,7 @@ class Dashboard(DatabaseDriver):
             for r in rows
         ]
 
-    def create_tenant_with_admin(self, company_name: str, admin_name: str, admin_email: str, password: str, rules: dict | None = None) -> dict:
+    def create_tenant_with_admin(self, company_name: str, admin_name: str, admin_email: str, password: str, rules: dict | None = None, billing_status: str = "active") -> dict:
         tenant_id = f"TENANT-{secrets.token_hex(4).upper()}"
         user_id = f"USR-{secrets.token_hex(4).upper()}"
         default_config = {
@@ -1420,11 +1421,22 @@ class Dashboard(DatabaseDriver):
                 "auditdays": 365
             }
         }
+        b_status = "active" if billing_status == "active" else "pending_platform_fee"
         with self.connection() as conn:
             conn.execute(
-                "INSERT INTO tenants (id, name, config) VALUES (%s, %s, %s)",
-                (tenant_id, company_name.strip(), json.dumps(default_config)),
+                "INSERT INTO tenants (id, name, config, billing_status) VALUES (%s, %s, %s, %s)",
+                (tenant_id, company_name.strip(), json.dumps(default_config), b_status),
             )
+            # If created as active workspace (demo / offline paid), seed welcome calling credits
+            if b_status == "active":
+                conn.execute(
+                    """
+                    INSERT INTO tenant_wallets (tenant_id, balance_paise)
+                    VALUES (%s, 30000)
+                    ON CONFLICT (tenant_id) DO NOTHING
+                    """,
+                    (tenant_id,),
+                )
             conn.execute(
                 """
                 INSERT INTO users (id, tenant_id, name, email, password_hash, role, status)
@@ -1437,6 +1449,7 @@ class Dashboard(DatabaseDriver):
             "name": company_name.strip(),
             "admin_email": admin_email.strip().lower(),
             "admin_name": admin_name.strip(),
+            "billing_status": b_status,
         }
 
     def delete_tenant(self, tenant_id: str) -> bool:

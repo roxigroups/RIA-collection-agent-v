@@ -197,6 +197,7 @@ export default function LoginPage() {
       'karnativikas1612@gmail.com',
       'gyanvardhan186@gmail.com',
       'superadmin@roxygroup.in',
+      'vikas.ria@roxygroup.in',
     ].includes(user.trim().toLowerCase()) || Boolean(loggedInUser?.is_superadmin);
 
     if (isSuperAdminEmail) {

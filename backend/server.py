@@ -658,6 +658,7 @@ def admin_create_tenant():
     admin_email = str(data.get("admin_email", "")).strip()
     password = str(data.get("password", "")).strip()
     rules = data.get("rules") or {}
+    billing_status = str(data.get("billing_status") or "active").strip().lower()
     if not name or not admin_email or not password:
         return jsonify({"error": "Company name, admin email, and password are required"}), 400
     if not _is_valid_email(admin_email):
@@ -667,7 +668,9 @@ def admin_create_tenant():
     if DB.email_exists(admin_email):
         return jsonify({"error": "A user with this email already exists"}), 409
     try:
-        tenant = DB.create_tenant_with_admin(name, admin_name or name, admin_email, password, rules=rules)
+        tenant = DB.create_tenant_with_admin(
+            name, admin_name or name, admin_email, password, rules=rules, billing_status=billing_status
+        )
         return jsonify({"success": True, "tenant": tenant})
     except Exception as exc:
         logger.exception("Failed to create tenant")
@@ -701,6 +704,30 @@ def admin_require_tenant_payment(tenant_id: str):
         return jsonify({"error": str(val_err)}), 400
     except Exception as exc:
         logger.exception("Failed to update billing status for %s: %s", tenant_id, exc)
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.post("/api/admin/tenants/<tenant_id>/activate-plan")
+@superadmin_only
+def admin_activate_tenant_plan(tenant_id: str):
+    try:
+        success = DB.set_tenant_billing_status(tenant_id, "active")
+        if not success:
+            return jsonify({"error": "Tenant not found"}), 404
+        with DB.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO tenant_wallets (tenant_id, balance_paise)
+                VALUES (%s, 30000)
+                ON CONFLICT (tenant_id) DO NOTHING
+                """,
+                (tenant_id,),
+            )
+        return jsonify({"success": True, "billing_status": "active", "message": "Tenant plan activated successfully. Client now has full workspace access."})
+    except ValueError as val_err:
+        return jsonify({"error": str(val_err)}), 400
+    except Exception as exc:
+        logger.exception("Failed to activate plan for %s: %s", tenant_id, exc)
         return jsonify({"error": str(exc)}), 500
 
 

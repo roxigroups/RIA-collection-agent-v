@@ -99,7 +99,7 @@ export default function OnboardingActivatePage() {
         amount: orderRes.amount,
         currency: orderRes.currency || 'INR',
         name: 'RIA AI Platform',
-        description: `${plan.name} Lifetime Setup + ₹300 Calling Credits`,
+        description: `${plan.name} (₹4,999/mo) + ₹300 Calling Credits`,
         image: '/logo-mark.png',
         order_id: orderRes.order_id,
         prefill: {
